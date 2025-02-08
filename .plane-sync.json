@@ -1,14 +1,14 @@
 {
   "github": {
-    "owner": "pre-litigation-suite",
-    "repo": "credit-saas",
+    "owner": "your-org-name",
+    "repo": "your-repo-name",
     "projectNumber": 1,
-    "isOrgProject": true
+    "isOrgProject": false
   },
   "plane": {
-    "baseUrl": "https://plane.squirrel.software",
-    "workspaceSlug": "squirrel-software",
-    "projectSlug": "07de602e-4d15-4df8-96ba-4df852c549c7"
+    "baseUrl": "https://your-plane-instance.com",
+    "workspaceSlug": "your-workspace",
+    "projectSlug": "your-project-id"
   },
   "sync": {
     "direction": "github-to-plane",
