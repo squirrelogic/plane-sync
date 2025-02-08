@@ -1,17 +1,58 @@
 {
-  "name": "plane-importer",
+  "name": "@squirrelsoft/plane-importer",
   "version": "0.1.0",
   "description": "CLI tool to sync GitHub issues with Plane",
   "main": "dist/index.js",
   "bin": {
     "plane-sync": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": [
+    "github",
+    "plane",
+    "issue-tracking",
+    "sync",
+    "cli",
+    "project-management"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "test": "jest"
+    "test": "jest",
+    "prepare": "husky install",
+    "prepublishOnly": "npm run build",
+    "commitlint": "commitlint --edit",
+    "release": "standard-version",
+    "release:minor": "standard-version --release-as minor",
+    "release:patch": "standard-version --release-as patch",
+    "release:major": "standard-version --release-as major"
   },
+  "husky": {
+    "hooks": {
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/squirrelsoft/plane-importer.git"
+  },
+  "author": "Squirrel Software",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/squirrelsoft/plane-importer/issues"
+  },
+  "homepage": "https://github.com/squirrelsoft/plane-importer#readme",
   "dependencies": {
     "@octokit/rest": "^19.0.0",
     "axios": "^1.6.0",
@@ -21,11 +62,15 @@
     "object-hash": "^3.0.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^17.0.0",
+    "@commitlint/config-conventional": "^17.0.0",
     "@types/inquirer": "^8.2.5",
     "@types/jest": "^29.5.0",
     "@types/node": "^18.15.11",
     "@types/object-hash": "^3.0.2",
+    "husky": "^8.0.0",
     "jest": "^29.5.0",
+    "standard-version": "^9.5.0",
     "ts-jest": "^29.1.0",
     "ts-node": "^10.9.1",
     "typescript": "^5.0.4"
