@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.6.0](https://github.com/squirrelsoft/plane-importer/compare/v0.5.0...v0.6.0) (2025-02-08)
+
+
+### Bug Fixes
+
+* **ci:** update GitHub Actions output syntax ([8778f19](https://github.com/squirrelsoft/plane-importer/commit/8778f19d651e916bf46b6f879c77c92294d2ea08))
+
 ## [0.5.0](https://github.com/squirrelsoft/plane-importer/compare/v0.3.0...v0.5.0) (2025-02-08)
 
 
