@@ -1,8 +1,11 @@
 name: Publish Package
 
 on:
+  push:
+    tags:
+      - 'v*'
   release:
-    types: [created]
+    types: [created, published]
 
 jobs:
   build:
@@ -12,6 +15,9 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

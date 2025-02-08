@@ -12,6 +12,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.create_release.outputs.id }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -28,6 +30,7 @@ jobs:
         REPO: ${{ github.repository }}
 
     - name: Create GitHub Release
+      id: create_release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.get_tag.outputs.TAG }}
@@ -35,5 +38,6 @@ jobs:
         body: ${{ steps.changelog.outputs.changelog }}
         draft: false
         prerelease: false
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
