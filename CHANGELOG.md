@@ -1,9 +1,23 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## 0.2.0 (2025-02-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **ci:** Package renamed to @squirrelsoft/plane-importer for npm organization scope
+
+- Add CI workflow for testing and type checking
+- Add npm publish workflow triggered by releases
+- Add GitHub release workflow for tag pushes
+- Update package.json with publishing configuration
+- Configure package for @squirrelsoft organization
+
+### Features
+
+* **ci:** add GitHub Actions workflows and npm publishing setup ([3d4d89c](https://github.com/squirrelsoft/plane-importer/commit/3d4d89c4925498205f713b55ba3ccceb7a47a97a))
 
 ## [0.1.0] - 2024-02-08
 
