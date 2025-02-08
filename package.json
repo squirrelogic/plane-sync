@@ -1,6 +1,6 @@
 {
   "name": "@squirrelsoft/plane-importer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "CLI tool to sync GitHub issues with Plane",
   "main": "dist/index.js",
   "bin": {
