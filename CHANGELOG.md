@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.15.0](https://github.com/squirrelogic/plane-sync/compare/v0.14.0...v0.15.0) (2025-02-09)
+
+
+### Bug Fixes
+
+* made bidirectional syncing work ([0a2cf0a](https://github.com/squirrelogic/plane-sync/commit/0a2cf0af9d46ca5b526ff0dfc4f22d0c91393ff7))
+
 ## [0.14.0](https://github.com/squirrelogic/plane-sync/compare/v0.13.0...v0.14.0) (2025-02-09)
 
 
