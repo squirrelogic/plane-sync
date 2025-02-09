@@ -1,6 +1,6 @@
-# Contributing to Plane Importer
+# Contributing to Plane Sync
 
-We love your input! We want to make contributing to Plane Importer as easy and transparent as possible, whether it's:
+We love your input! We want to make contributing to Plane Sync as easy and transparent as possible, whether it's:
 
 - Reporting a bug
 - Discussing the current state of the code
@@ -12,8 +12,8 @@ We love your input! We want to make contributing to Plane Importer as easy and t
 
 1. Fork and clone the repository
 ```bash
-git clone https://github.com/your-username/plane-importer.git
-cd plane-importer
+git clone https://github.com/your-username/plane-sync.git
+cd plane-sync
 ```
 
 2. Install dependencies
@@ -103,8 +103,8 @@ style: format code according to prettier rules
 ## Any contributions you make will be under the MIT Software License
 In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project. Feel free to contact the maintainers if that's a concern.
 
-## Report bugs using Github's [issue tracker](https://github.com/yourusername/plane-importer/issues)
-We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/yourusername/plane-importer/issues/new); it's that easy!
+## Report bugs using Github's [issue tracker](https://github.com/squirrelogic/plane-sync/issues)
+We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/squirrelogic/plane-sync/issues/new); it's that easy!
 
 ## Write bug reports with detail, background, and sample code
 

@@ -24,7 +24,7 @@ If applicable, add logs or error messages.
 **Environment (please complete the following information):**
  - OS: [e.g. macOS, Linux]
  - Node.js version: [e.g. 16.x]
- - Plane Importer version: [e.g. 0.1.0]
+ - Plane Sync version: [e.g. 0.1.0]
 
 **Additional context**
 Add any other context about the problem here.

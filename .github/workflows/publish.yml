@@ -43,5 +43,5 @@ jobs:
       - name: Log publish result
         run: |
           echo "Package published to npm registry"
-          echo "Package: @squirrelsoft/plane-importer"
+          echo "Package: @squirrelsoft/plane-sync"
           echo "Version: $(node -p "require('./package.json').version")"

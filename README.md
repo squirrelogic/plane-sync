@@ -1,4 +1,4 @@
-# Plane Importer
+# Plane Sync
 
 A CLI tool to synchronize GitHub issues with Plane projects. This tool allows bidirectional synchronization of issues between GitHub and Plane, maintaining consistency across both platforms.
 
@@ -14,8 +14,8 @@ A CLI tool to synchronize GitHub issues with Plane projects. This tool allows bi
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/plane-importer.git
-cd plane-importer
+git clone https://github.com/squirrelogic/plane-sync.git
+cd plane-sync
 ```
 
 2. Install dependencies:
@@ -66,17 +66,17 @@ cp .plane-sync.json my-config.json
 
 To sync issues using the default config file (`.plane-sync.json`):
 ```bash
-npx @squirrelsoft/plane-importer sync
+npx @squirrelsoft/plane-sync sync
 ```
 
 To use a custom config file:
 ```bash
-npx @squirrelsoft/plane-importer sync --config my-config.json
+npx @squirrelsoft/plane-sync sync --config my-config.json
 ```
 
 To view sync status:
 ```bash
-npx @squirrelsoft/plane-importer status
+npx @squirrelsoft/plane-sync status
 ```
 
 ## Configuration Options

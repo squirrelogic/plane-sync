@@ -1,5 +1,5 @@
 {
-  "name": "@squirrelsoft/plane-importer",
+  "name": "@squirrelsoft/plane-sync",
   "version": "0.9.0",
   "description": "CLI tool to sync GitHub issues with Plane",
   "main": "dist/index.js",
@@ -45,14 +45,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/squirrelsoft/plane-importer.git"
+    "url": "git+https://github.com/squirrelsoft/plane-sync.git"
   },
   "author": "Squirrel Software",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/squirrelsoft/plane-importer/issues"
+    "url": "https://github.com/squirrelsoft/plane-sync/issues"
   },
-  "homepage": "https://github.com/squirrelsoft/plane-importer#readme",
+  "homepage": "https://github.com/squirrelsoft/plane-sync#readme",
   "dependencies": {
     "@octokit/rest": "^19.0.0",
     "axios": "^1.6.0",
