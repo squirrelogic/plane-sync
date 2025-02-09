@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: '18.x'
           registry-url: 'https://registry.npmjs.org'
-          scope: '@squirrelsoft'
+          scope: '@squirrelogic'
 
       - name: Install dependencies
         run: npm ci
@@ -43,5 +43,5 @@ jobs:
       - name: Log publish result
         run: |
           echo "Package published to npm registry"
-          echo "Package: @squirrelsoft/plane-sync"
+          echo "Package: @squirrelogic/plane-sync"
           echo "Version: $(node -p "require('./package.json').version")"
