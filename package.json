@@ -1,5 +1,5 @@
 {
-  "name": "@squirrelogic/plane-sync",
+  "name": "@squirrelsoft/plane-sync",
   "version": "0.11.0",
   "description": "CLI tool to sync GitHub issues with Plane",
   "main": "dist/index.js",

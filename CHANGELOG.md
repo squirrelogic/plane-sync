@@ -45,13 +45,13 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### ⚠ BREAKING CHANGES
 
-* **ci:** Package renamed to @squirrelogic/plane-sync for npm organization scope
+* **ci:** Package renamed to @squirrelsoft/plane-sync for npm organization scope
 
 - Add CI workflow for testing and type checking
 - Add npm publish workflow triggered by releases
 - Add GitHub release workflow for tag pushes
 - Update package.json with publishing configuration
-- Configure package for @squirrelogic organization
+- Configure package for @squirrelsoft organization
 
 ### Features
 

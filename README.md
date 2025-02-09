@@ -66,17 +66,17 @@ cp .plane-sync.json my-config.json
 
 To sync issues using the default config file (`.plane-sync.json`):
 ```bash
-npx @squirrelogic/plane-sync sync
+npx @squirrelsoft/plane-sync sync
 ```
 
 To use a custom config file:
 ```bash
-npx @squirrelogic/plane-sync sync --config my-config.json
+npx @squirrelsoft/plane-sync sync --config my-config.json
 ```
 
 To view sync status:
 ```bash
-npx @squirrelogic/plane-sync status
+npx @squirrelsoft/plane-sync status
 ```
 
 ## Configuration Options
