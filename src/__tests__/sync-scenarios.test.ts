@@ -3,15 +3,20 @@ import { PlaneProvider } from '../providers/plane-provider';
 import { SyncService } from '../services/sync-service';
 import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized';
 import { PlaneClient, PlaneIssue } from '../clients/plane-client';
+import { GitHubClient } from '../clients/github-client';
 
 // Mock implementations
 jest.mock('../providers/github-provider');
 jest.mock('../providers/plane-provider');
+jest.mock('../clients/github-client');
+jest.mock('../clients/plane-client');
 
 describe('Sync Scenarios', () => {
   let githubProvider: jest.Mocked<GitHubProvider>;
   let planeProvider: jest.Mocked<PlaneProvider>;
   let syncService: SyncService;
+  let githubClient: jest.Mocked<GitHubClient>;
+  let planeClient: jest.Mocked<PlaneClient>;
 
   const mockGithubIssue: NormalizedIssue = {
     id: 'github-123',
@@ -44,8 +49,11 @@ describe('Sync Scenarios', () => {
   };
 
   beforeEach(() => {
-    githubProvider = new GitHubProvider('token', 'owner', 'repo', 1, false) as jest.Mocked<GitHubProvider>;
-    planeProvider = new PlaneProvider({} as PlaneClient, 'workspace', 'project') as jest.Mocked<PlaneProvider>;
+    githubClient = new GitHubClient('token') as jest.Mocked<GitHubClient>;
+    planeClient = new PlaneClient('http://plane.org', 'api-key') as jest.Mocked<PlaneClient>;
+
+    githubProvider = new GitHubProvider(githubClient, 'owner', 'repo', 1, false) as jest.Mocked<GitHubProvider>;
+    planeProvider = new PlaneProvider(planeClient, 'workspace', 'project') as jest.Mocked<PlaneProvider>;
     syncService = new SyncService(githubProvider, planeProvider);
 
     // Reset all mocks before each test

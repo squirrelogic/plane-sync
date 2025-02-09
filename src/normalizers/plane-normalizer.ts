@@ -1,10 +1,11 @@
 import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized';
 import { IssueNormalizer } from './issue-normalizer';
-import { PlaneClient, PlaneIssue, CreateIssueData } from '../clients/plane-client';
+import { PlaneClient, PlaneIssue, CreatePlaneIssueData } from '../clients/plane-client';
+import { BaseLabel } from '../clients/base-client';
 
-export class PlaneNormalizer implements IssueNormalizer<PlaneIssue, CreateIssueData> {
-  private stateCache: Map<string, { id: string; name: string; color?: string }> = new Map();
-  private labelCache: Map<string, { id: string; name: string; color?: string; description?: string }> = new Map();
+export class PlaneNormalizer implements IssueNormalizer<PlaneIssue, CreatePlaneIssueData> {
+  private stateCache: Map<string, { id: string; name: string; category: NormalizedStateCategory }> = new Map();
+  private labelCache: Map<string, BaseLabel> = new Map();
 
   constructor(
     private client: PlaneClient,
@@ -12,178 +13,141 @@ export class PlaneNormalizer implements IssueNormalizer<PlaneIssue, CreateIssueD
     private projectId: string
   ) {}
 
+  private get projectRef(): string {
+    return `${this.workspaceId}/${this.projectId}`;
+  }
+
   async initialize(): Promise<void> {
+    // Load states and labels into cache
     const [states, labels] = await Promise.all([
-      this.client.getStates(this.workspaceId, this.projectId),
-      this.client.getLabels(this.workspaceId, this.projectId)
+      this.client.getStates(this.projectRef),
+      this.client.getLabels(this.projectRef)
     ]);
 
+    // Cache states
     states.forEach(state => {
-      this.stateCache.set(state.name.toLowerCase(), state);
+      this.stateCache.set(state.id, {
+        id: state.id,
+        name: state.name,
+        category: this.getCategoryFromName(state.name)
+      });
     });
 
+    // Cache labels
     labels.forEach(label => {
-      this.labelCache.set(label.name.toLowerCase(), label);
+      this.labelCache.set(label.name, label);
     });
   }
 
+  private getCategoryFromName(name: string): NormalizedStateCategory {
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('backlog')) return NormalizedStateCategory.Backlog;
+    if (lowerName.includes('todo')) return NormalizedStateCategory.Todo;
+    if (lowerName.includes('in progress')) return NormalizedStateCategory.InProgress;
+    if (lowerName.includes('ready')) return NormalizedStateCategory.Ready;
+    if (lowerName.includes('done')) return NormalizedStateCategory.Done;
+    return NormalizedStateCategory.Backlog;
+  }
+
   async normalize(issue: PlaneIssue): Promise<NormalizedIssue> {
-    const [states, labels] = await Promise.all([
-      this.client.getStates(this.workspaceId, this.projectId),
-      this.client.getLabels(this.workspaceId, this.projectId)
-    ]);
+    // Ensure cache is initialized
+    if (this.stateCache.size === 0) {
+      await this.initialize();
+    }
+
+    const stateInfo = this.stateCache.get(issue.state.id) || {
+      id: issue.state.id,
+      name: issue.state.name,
+      category: this.getCategoryFromName(issue.state.name)
+    };
+
+    // Handle labels - create them if they don't exist
+    const normalizedLabels = await Promise.all(issue.labels.map(async label => {
+      let existingLabel = this.labelCache.get(label.name);
+      if (!existingLabel) {
+        // Create new label if it doesn't exist
+        existingLabel = await this.client.createLabel(this.projectRef, {
+          name: label.name,
+          color: label.color || '#000000',
+          description: label.description
+        });
+        this.labelCache.set(label.name, existingLabel);
+      }
+      return {
+        name: label.name,
+        color: label.color,
+        description: label.description,
+        metadata: { id: existingLabel.id }
+      };
+    }));
 
     return {
       id: issue.id,
       title: issue.name,
       description: issue.description || '',
-      state: await this.normalizeState(issue.state, states),
-      labels: await this.normalizeLabels(issue.labels, labels),
-      assignees: issue.assignee_ids || [],
+      state: {
+        category: stateInfo.category,
+        name: stateInfo.name,
+        color: issue.state.color,
+        metadata: { id: issue.state.id }
+      },
+      labels: normalizedLabels,
+      assignees: issue.assignee_ids,
       createdAt: issue.created_at,
       updatedAt: issue.updated_at,
-      sourceProvider: 'plane',
       metadata: {
         stateId: issue.state.id,
-        ...(issue.metadata || {})
-      }
+        ...issue.metadata
+      },
+      sourceProvider: 'plane'
     };
   }
 
-  async denormalize(issue: NormalizedIssue): Promise<CreateIssueData> {
-    const [states, labels] = await Promise.all([
-      this.client.getStates(this.workspaceId, this.projectId),
-      this.client.getLabels(this.workspaceId, this.projectId)
-    ]);
-
-    return {
-      name: issue.title,
-      description: issue.description,
-      state_id: (await this.denormalizeState(issue.state, states)).id,
-      label_ids: await this.denormalizeLabels(issue.labels, labels),
-      assignee_ids: issue.assignees,
-      metadata: issue.metadata || {}
-    };
-  }
-
-  private async ensureInitialized(): Promise<void> {
-    if (this.stateCache.size === 0 || this.labelCache.size === 0) {
+  async denormalize(issue: NormalizedIssue): Promise<CreatePlaneIssueData> {
+    // Ensure cache is initialized
+    if (this.stateCache.size === 0) {
       await this.initialize();
     }
-  }
 
-  private getStateCategory(stateName: string): NormalizedStateCategory {
-    const name = stateName.toLowerCase();
-    if (name.includes('backlog')) return NormalizedStateCategory.Backlog;
-    if (name.includes('todo') || name.includes('to do')) return NormalizedStateCategory.Todo;
-    if (name.includes('progress') || name.includes('doing')) return NormalizedStateCategory.InProgress;
-    if (name.includes('ready') || name.includes('review')) return NormalizedStateCategory.Ready;
-    if (name.includes('done') || name.includes('completed')) return NormalizedStateCategory.Done;
-    return NormalizedStateCategory.Backlog;
-  }
+    // Find matching state ID
+    let stateId = '';
+    for (const [id, state] of this.stateCache.entries()) {
+      if (state.category === issue.state.category) {
+        stateId = id;
+        break;
+      }
+    }
 
-  private async getOrCreateLabelIds(labels: Array<{ name: string; color?: string; description?: string }>): Promise<string[]> {
+    // Handle labels
     const labelIds: string[] = [];
-
-    for (const label of labels) {
-      const existingLabel = this.labelCache.get(label.name.toLowerCase());
-      if (existingLabel) {
-        labelIds.push(existingLabel.id);
-      } else {
-        const newLabel = await this.client.createLabel(this.workspaceId, this.projectId, {
+    for (const label of issue.labels) {
+      let existingLabel = this.labelCache.get(label.name);
+      if (!existingLabel) {
+        // Create new label if it doesn't exist
+        existingLabel = await this.client.createLabel(this.projectRef, {
           name: label.name,
           color: label.color || '#000000',
           description: label.description
         });
-        this.labelCache.set(newLabel.name.toLowerCase(), newLabel);
-        labelIds.push(newLabel.id);
+        this.labelCache.set(label.name, existingLabel);
       }
+      labelIds.push(existingLabel.id);
     }
 
-    return labelIds;
-  }
-
-  private async normalizeState(state: { name: string; color?: string }, states: Array<{ name: string; color?: string }>): Promise<{ category: NormalizedStateCategory; name: string; color?: string }> {
-    const normalizedState = states.find(s => s.name.toLowerCase() === state.name.toLowerCase());
-    if (normalizedState) {
-      return {
-        category: this.getStateCategory(normalizedState.name),
-        name: normalizedState.name,
-        color: normalizedState.color
-      };
-    }
-    // If state not found, return a default state
     return {
-      category: NormalizedStateCategory.Backlog,
-      name: state.name,
-      color: state.color
+      title: issue.title,
+      name: issue.title,
+      description: issue.description,
+      state: stateId,
+      state_id: stateId,
+      labels: labelIds,
+      label_ids: labelIds,
+      assignee_ids: issue.assignees,
+      metadata: {
+        externalId: issue.id,
+        provider: issue.sourceProvider,
+        ...issue.metadata
+      }
     };
-  }
-
-  private async normalizeLabels(labels: Array<{ name: string; color?: string; description?: string }>, allLabels: Array<{ name: string; color?: string }>): Promise<Array<{ name: string; color?: string; description?: string }>> {
-    const normalizedLabels: Array<{ name: string; color?: string; description?: string }> = [];
-
-    for (const label of labels) {
-      const normalizedLabel = allLabels.find(l => l.name.toLowerCase() === label.name.toLowerCase());
-      if (normalizedLabel) {
-        normalizedLabels.push({
-          name: normalizedLabel.name,
-          color: normalizedLabel.color,
-          description: label.description
-        });
-      } else {
-        const newLabel = await this.client.createLabel(this.workspaceId, this.projectId, {
-          name: label.name,
-          color: label.color || '#000000',
-          description: label.description
-        });
-        this.labelCache.set(newLabel.name.toLowerCase(), newLabel);
-        normalizedLabels.push({
-          name: newLabel.name,
-          color: newLabel.color,
-          description: label.description
-        });
-      }
-    }
-
-    return normalizedLabels;
-  }
-
-  private async denormalizeState(state: { category: NormalizedStateCategory; name: string; color?: string }, states: Array<{ name: string; id: string; color?: string }>): Promise<{ id: string; name: string; color?: string }> {
-    const normalizedState = states.find(s => s.name.toLowerCase() === state.name.toLowerCase());
-    if (normalizedState) {
-      return {
-        id: normalizedState.id,
-        name: normalizedState.name,
-        color: normalizedState.color
-      };
-    }
-    throw new Error(`Could not find state with name ${state.name}`);
-  }
-
-  private async denormalizeLabels(labels: Array<{ name: string; color?: string; description?: string }>, allLabels: Array<{ name: string; id: string; color?: string }>): Promise<string[]> {
-    const labelIds: string[] = [];
-
-    // First update cache with all labels
-    allLabels.forEach(label => {
-      this.labelCache.set(label.name.toLowerCase(), label);
-    });
-
-    for (const label of labels) {
-      const existingLabel = this.labelCache.get(label.name.toLowerCase());
-      if (existingLabel) {
-        labelIds.push(existingLabel.id);
-      } else {
-        const newLabel = await this.client.createLabel(this.workspaceId, this.projectId, {
-          name: label.name,
-          color: label.color || '#000000',
-          description: label.description
-        });
-        this.labelCache.set(newLabel.name.toLowerCase(), newLabel);
-        labelIds.push(newLabel.id);
-      }
-    }
-
-    return labelIds;
   }
 }

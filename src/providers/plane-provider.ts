@@ -2,8 +2,9 @@ import { RepoProvider } from './repo-provider';
 import { NormalizedIssue, NormalizedLabel, NormalizedState, StateMappingConfig, NormalizedStateCategory } from '../types/normalized';
 import { IssueState } from '../types';
 import { PlaneNormalizer } from '../normalizers/plane-normalizer';
-import { PlaneClient, PlaneIssue, CreateIssueData } from '../clients/plane-client';
+import { PlaneClient, PlaneIssue, CreatePlaneIssueData, UpdatePlaneIssueData } from '../clients/plane-client';
 import { BaseProvider } from './base-provider';
+import { BaseIssue } from '../clients/base-client';
 
 export class PlaneProvider extends BaseProvider implements RepoProvider {
   protected readonly name = 'plane';
@@ -18,63 +19,130 @@ export class PlaneProvider extends BaseProvider implements RepoProvider {
     defaultCategory: NormalizedStateCategory.Backlog
   };
   public readonly normalizer: PlaneNormalizer;
-  private readonly client: PlaneClient;
-  private readonly workspaceId: string;
-  private readonly projectId: string;
 
-  constructor(client: PlaneClient, workspaceId: string, projectId: string) {
+  constructor(
+    private client: PlaneClient,
+    private workspaceId: string,
+    private projectId: string
+  ) {
     super();
-    this.client = client;
-    this.workspaceId = workspaceId;
-    this.projectId = projectId;
     this.normalizer = new PlaneNormalizer(client, workspaceId, projectId);
   }
 
+  private get projectRef(): string {
+    return `${this.workspaceId}/${this.projectId}`;
+  }
+
+  private convertBaseToPlaneIssue(baseIssue: BaseIssue): PlaneIssue {
+    return {
+      id: baseIssue.id,
+      name: baseIssue.title,
+      description: baseIssue.description,
+      state: {
+        id: baseIssue.metadata?.stateId || '',
+        name: baseIssue.state.name,
+        color: baseIssue.state.color || '#000000',
+        description: undefined
+      },
+      labels: baseIssue.labels.map(label => ({
+        id: label.metadata?.id || '',
+        name: label.name,
+        color: label.color || '#000000',
+        description: label.description
+      })),
+      assignee_ids: baseIssue.metadata?.assigneeIds || [],
+      created_at: baseIssue.createdAt,
+      updated_at: baseIssue.updatedAt,
+      metadata: baseIssue.metadata
+    };
+  }
+
   async getIssues(): Promise<NormalizedIssue[]> {
-    const issues = await this.client.getIssues(this.workspaceId, this.projectId);
-    return Promise.all(issues.map(issue => this.normalizer.normalize(issue)));
+    const issues = await this.client.listIssues(this.projectRef);
+    return Promise.all(issues.map(issue => this.normalizer.normalize(this.convertBaseToPlaneIssue(issue))));
   }
 
   async getIssue(id: string): Promise<NormalizedIssue> {
-    const issue = await this.client.getIssue(this.workspaceId, this.projectId, id);
-    return this.normalizer.normalize(issue);
+    const issue = await this.client.getIssue(this.projectRef, id);
+    return this.normalizer.normalize(this.convertBaseToPlaneIssue(issue));
   }
 
   async createIssue(issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>): Promise<NormalizedIssue> {
-    const planeIssue = await this.normalizer.denormalize(issue as NormalizedIssue);
-    const createdIssue = await this.client.createIssue(this.workspaceId, this.projectId, {
-      ...planeIssue,
-      state_id: planeIssue.state_id || (await this.getDefaultStateId())
-    });
-    return this.normalizer.normalize(createdIssue);
+    const planeIssue: CreatePlaneIssueData = {
+      title: issue.title,
+      name: issue.title,
+      description: issue.description,
+      state: issue.state.metadata?.id || '',
+      state_id: issue.state.metadata?.id || '',
+      labels: issue.labels?.map(l => l.metadata?.id || '') || [],
+      label_ids: issue.labels?.map(l => l.metadata?.id || '') || [],
+      assignee_ids: issue.assignees,
+      metadata: {
+        externalId: issue.metadata?.externalId,
+        provider: issue.metadata?.provider
+      }
+    };
+
+    const createdIssue = await this.client.createIssue(this.projectRef, planeIssue);
+    return this.normalizer.normalize(this.convertBaseToPlaneIssue(createdIssue));
   }
 
   async updateIssue(id: string, issue: Partial<NormalizedIssue>): Promise<NormalizedIssue> {
-    const planeIssue = await this.normalizer.denormalize(issue as NormalizedIssue);
-    const updatedIssue = await this.client.updateIssue(this.workspaceId, this.projectId, id, planeIssue);
-    return this.normalizer.normalize(updatedIssue);
+    const planeIssue: UpdatePlaneIssueData = {
+      title: issue.title,
+      name: issue.title,
+      description: issue.description,
+      state: issue.state?.metadata?.id || '',
+      state_id: issue.state?.metadata?.id || '',
+      labels: issue.labels?.map(l => l.metadata?.id || '') || [],
+      label_ids: issue.labels?.map(l => l.metadata?.id || '') || [],
+      assignee_ids: issue.assignees
+    };
+
+    const updatedIssue = await this.client.updateIssue(this.projectRef, id, planeIssue);
+    return this.normalizer.normalize(this.convertBaseToPlaneIssue(updatedIssue));
   }
 
   async deleteIssue(id: string): Promise<void> {
-    await this.client.deleteIssue(this.workspaceId, this.projectId, id);
+    await this.client.deleteIssue(this.projectRef, id);
   }
 
   async getLabels(): Promise<NormalizedLabel[]> {
-    const labels = await this.client.getLabels(this.workspaceId, this.projectId);
+    const labels = await this.client.getLabels(this.projectRef);
     return labels.map(label => ({
       name: label.name,
       color: label.color,
-      description: label.description
+      description: label.description,
+      metadata: { id: label.id }
     }));
   }
 
   async getStates(): Promise<NormalizedState[]> {
-    const states = await this.client.getStates(this.workspaceId, this.projectId);
+    const states = await this.client.getStates(this.projectRef);
     return states.map(state => ({
-      category: this.stateMappingConfig.stateMapping[state.name.toLowerCase()] || this.stateMappingConfig.defaultCategory,
+      category: this.getCategoryFromName(state.name),
       name: state.name,
-      color: state.color
+      color: state.color,
+      metadata: { id: state.id }
     }));
+  }
+
+  private getCategoryFromName(name: string): NormalizedStateCategory {
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('backlog')) return NormalizedStateCategory.Backlog;
+    if (lowerName.includes('todo')) return NormalizedStateCategory.Todo;
+    if (lowerName.includes('in progress')) return NormalizedStateCategory.InProgress;
+    if (lowerName.includes('ready')) return NormalizedStateCategory.Ready;
+    if (lowerName.includes('done')) return NormalizedStateCategory.Done;
+    return NormalizedStateCategory.Backlog;
+  }
+
+  getName(): string {
+    return 'plane';
+  }
+
+  getStateMappingConfig(): StateMappingConfig {
+    return this.stateMappingConfig;
   }
 
   isSourceOfTruth(issue: NormalizedIssue): boolean {
@@ -84,19 +152,10 @@ export class PlaneProvider extends BaseProvider implements RepoProvider {
   mapState(state: NormalizedState): IssueState {
     const category = state.category.replace('_', '') as 'backlog' | 'todo' | 'in_progress' | 'ready' | 'done';
     return {
-      id: '',
+      id: state.metadata?.id || '',
       name: state.name,
       category,
       color: state.color
     };
-  }
-
-  private async getDefaultStateId(): Promise<string> {
-    const states = await this.client.getStates(this.workspaceId, this.projectId);
-    const defaultState = states.find(state =>
-      state.name.toLowerCase().includes('todo') ||
-      state.name.toLowerCase().includes('to do')
-    );
-    return defaultState?.id || states[0].id;
   }
 }

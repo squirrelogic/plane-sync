@@ -1,19 +1,22 @@
 import { GitHubProvider } from '../providers/github-provider';
 import { PlaneProvider } from '../providers/plane-provider';
 import { NormalizedIssue, NormalizedStateCategory, NormalizedLabel, NormalizedState } from '../types/normalized';
-import { PlaneClient, PlaneIssue, PlaneState, PlaneLabel, CreateIssueData } from '../clients/plane-client';
+import { PlaneClient, PlaneIssue, PlaneState, PlaneLabel, CreatePlaneIssueData } from '../clients/plane-client';
 import { GitHubIssue, CreateGitHubIssue, GitHubNormalizer } from '../normalizers/github-normalizer';
 import { PlaneNormalizer } from '../normalizers/plane-normalizer';
 import { NormalizedIssueUtils } from '../types/normalized';
+import { BaseLabel, CreateLabelData, IssueTrackingClient } from '../clients/base-client';
+import { MockPlaneClient } from './mocks/mock-plane-client';
 
 // Mock the providers but use real normalizers
 jest.mock('../providers/github-provider');
 jest.mock('../providers/plane-provider');
+jest.mock('../clients/plane-client');
 
 describe('Issue Mapping', () => {
   let githubNormalizer: GitHubNormalizer;
   let planeNormalizer: PlaneNormalizer;
-  let planeClient: jest.Mocked<PlaneClient>;
+  let planeClient: MockPlaneClient;
 
   const mockGitHubRawIssue: GitHubIssue = {
     number: 123,
@@ -31,16 +34,11 @@ describe('Issue Mapping', () => {
   };
 
   beforeEach(() => {
-    // Mock PlaneClient
-    planeClient = {
-      getStates: jest.fn(),
-      getLabels: jest.fn(),
-      createLabel: jest.fn()
-    } as unknown as jest.Mocked<PlaneClient>;
+    planeClient = new MockPlaneClient();
 
     // Create real normalizers
     githubNormalizer = new GitHubNormalizer();
-    planeNormalizer = new PlaneNormalizer(planeClient, 'workspace-id', 'project-id');
+    planeNormalizer = new PlaneNormalizer(planeClient as unknown as PlaneClient, 'workspace-id', 'project-id');
   });
 
   describe('GitHub Issue Mapping', () => {
@@ -166,18 +164,21 @@ describe('Issue Mapping', () => {
         state: {
           category: NormalizedStateCategory.InProgress,
           name: 'In Progress',
-          color: '#ffff00'
+          color: '#ffff00',
+          metadata: { id: 'state2' }
         },
         labels: [
           {
             name: 'bug',
             color: '#ff0000',
-            description: 'Bug label'
+            description: 'Bug label',
+            metadata: { id: 'label1' }
           },
           {
             name: 'feature',
             color: '#00ff00',
-            description: 'Feature label'
+            description: 'Feature label',
+            metadata: { id: 'label2' }
           }
         ],
         assignees: ['user1', 'user2'],
@@ -313,13 +314,11 @@ describe('Issue Mapping', () => {
       const normalizedIssue = await planeNormalizer.normalize(planeIssue);
       expect(planeClient.createLabel).toHaveBeenCalledTimes(2);
       expect(planeClient.createLabel).toHaveBeenCalledWith(
-        'workspace-id',
-        'project-id',
+        'workspace-id/project-id',
         expect.objectContaining({ name: 'newLabel1', color: '#ff0000' })
       );
       expect(planeClient.createLabel).toHaveBeenCalledWith(
-        'workspace-id',
-        'project-id',
+        'workspace-id/project-id',
         expect.objectContaining({ name: 'newLabel2', color: '#00ff00' })
       );
       expect(normalizedIssue.labels).toHaveLength(2);
@@ -388,8 +387,7 @@ describe('Issue Mapping', () => {
       const result = await planeNormalizer.denormalize(normalizedIssue);
       expect(planeClient.createLabel).toHaveBeenCalledTimes(2);
       expect(planeClient.createLabel).toHaveBeenCalledWith(
-        'workspace-id',
-        'project-id',
+        'workspace-id/project-id',
         {
           name: 'label1',
           color: '#ff0000',
@@ -397,11 +395,10 @@ describe('Issue Mapping', () => {
         }
       );
       expect(planeClient.createLabel).toHaveBeenCalledWith(
-        'workspace-id',
-        'project-id',
+        'workspace-id/project-id',
         {
           name: 'label2',
-          color: '#000000' // Default color
+          color: '#000000'
         }
       );
       expect(result.label_ids).toEqual(['label-1', 'label-2']);

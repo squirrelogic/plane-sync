@@ -16,6 +16,7 @@ export interface NormalizedState {
   category: NormalizedStateCategory;
   name: string;  // Original state name from provider
   color?: string;
+  metadata?: Record<string, any>;
 }
 
 /**
@@ -25,6 +26,7 @@ export interface NormalizedLabel {
   name: string;
   color?: string;
   description?: string;
+  metadata?: Record<string, any>;
 }
 
 /**

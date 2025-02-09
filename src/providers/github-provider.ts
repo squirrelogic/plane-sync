@@ -1,9 +1,10 @@
-import { Octokit } from '@octokit/rest';
 import { RepoProvider } from './repo-provider';
 import { NormalizedIssue, NormalizedLabel, NormalizedState, StateMappingConfig, NormalizedStateCategory } from '../types/normalized';
 import { IssueState } from '../types';
 import { GitHubNormalizer, GitHubIssue, CreateGitHubIssue } from '../normalizers/github-normalizer';
 import { BaseProvider } from './base-provider';
+import { GitHubClient } from '../clients/github-client';
+import { BaseIssue } from '../clients/base-client';
 
 export class GitHubProvider extends BaseProvider implements RepoProvider {
   protected readonly name = 'github';
@@ -14,92 +15,83 @@ export class GitHubProvider extends BaseProvider implements RepoProvider {
     },
     defaultCategory: NormalizedStateCategory.Backlog
   };
-  private octokit: Octokit;
   public readonly normalizer: GitHubNormalizer;
 
   constructor(
-    token: string,
+    private client: GitHubClient,
     private owner: string,
     private repo: string,
     private projectId?: number,
     private useProjectV2: boolean = false
   ) {
     super();
-    this.octokit = new Octokit({ auth: token });
     this.normalizer = new GitHubNormalizer();
   }
 
-  async getIssues(): Promise<NormalizedIssue[]> {
-    const { data: issues } = await this.octokit.rest.issues.listForRepo({
-      owner: this.owner,
-      repo: this.repo,
-      state: 'all'
-    });
+  private get projectRef(): string {
+    return `${this.owner}/${this.repo}`;
+  }
 
-    return Promise.all(
-      issues
-        .filter(issue => !issue.pull_request)
-        .map(issue => this.normalizer.normalize(issue as GitHubIssue))
-    );
+  private convertBaseIssueToGitHub(baseIssue: BaseIssue): GitHubIssue {
+    return {
+      number: parseInt(baseIssue.id),
+      title: baseIssue.title,
+      body: baseIssue.description || '',
+      state: baseIssue.state.name.toLowerCase() as 'open' | 'closed',
+      labels: baseIssue.labels.map(label => ({
+        name: label.name,
+        color: label.color?.replace('#', ''),
+        description: label.description
+      })),
+      assignees: [],
+      created_at: baseIssue.createdAt,
+      updated_at: baseIssue.updatedAt,
+      node_id: baseIssue.metadata?.nodeId || ''
+    };
+  }
+
+  async getIssues(): Promise<NormalizedIssue[]> {
+    const issues = await this.client.listIssues(this.projectRef);
+    return Promise.all(issues.map(issue => this.normalizer.normalize(this.convertBaseIssueToGitHub(issue))));
   }
 
   async getIssue(id: string): Promise<NormalizedIssue> {
-    const { data: issue } = await this.octokit.rest.issues.get({
-      owner: this.owner,
-      repo: this.repo,
-      issue_number: parseInt(id)
-    });
-
-    if (issue.pull_request) {
-      throw new Error('Issue is a pull request');
-    }
-
-    return this.normalizer.normalize(issue as GitHubIssue);
+    const issue = await this.client.getIssue(this.projectRef, id);
+    return this.normalizer.normalize(this.convertBaseIssueToGitHub(issue));
   }
 
   async createIssue(issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>): Promise<NormalizedIssue> {
-    const githubIssue = await this.normalizer.denormalize(issue as NormalizedIssue);
-    const { data } = await this.octokit.issues.create({
-      owner: this.owner,
-      repo: this.repo,
-      ...githubIssue
+    const createdIssue = await this.client.createIssue(this.projectRef, {
+      title: issue.title,
+      description: issue.description,
+      state: issue.state.name.toLowerCase(),
+      labels: issue.labels?.map(l => l.name)
     });
-
-    return this.normalizer.normalize(data as GitHubIssue);
+    return this.normalizer.normalize(this.convertBaseIssueToGitHub(createdIssue));
   }
 
   async updateIssue(id: string, issue: Partial<NormalizedIssue>): Promise<NormalizedIssue> {
-    const githubIssue = await this.normalizer.denormalize(issue as NormalizedIssue);
-    const { data } = await this.octokit.issues.update({
-      owner: this.owner,
-      repo: this.repo,
-      issue_number: parseInt(id),
-      ...githubIssue
-    });
+    const updateData = {
+      title: issue.title,
+      description: issue.description,
+      state: issue.state?.name.toLowerCase(),
+      labels: issue.labels?.map(l => l.name)
+    };
 
-    return this.normalizer.normalize(data as GitHubIssue);
+    const updatedIssue = await this.client.updateIssue(this.projectRef, id, updateData);
+    return this.normalizer.normalize(this.convertBaseIssueToGitHub(updatedIssue));
   }
 
   async deleteIssue(id: string): Promise<void> {
-    // GitHub doesn't support deleting issues, so we'll close it instead
-    await this.octokit.issues.update({
-      owner: this.owner,
-      repo: this.repo,
-      issue_number: parseInt(id),
-      state: 'closed'
-    });
+    await this.client.deleteIssue(this.projectRef, id);
   }
 
   async getLabels(): Promise<NormalizedLabel[]> {
-    const { data } = await this.octokit.issues.listLabelsForRepo({
-      owner: this.owner,
-      repo: this.repo
-    });
-
-    return data.map(label => ({
+    const labels = await this.client.getLabels(this.projectRef);
+    return labels.map(label => ({
       name: label.name,
-      color: label.color ? `#${label.color}` : undefined,
-      description: label.description || undefined
+      color: label.color,
+      description: label.description
     }));
   }
 
