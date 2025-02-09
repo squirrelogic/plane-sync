@@ -5,20 +5,30 @@ import { SyncConfig } from './types';
 const DEFAULT_CONFIG_PATH = path.join(process.cwd(), '.plane-sync.json');
 
 export class ConfigManager {
-  private config: SyncConfig;
+  private configPath: string;
 
   constructor(configPath?: string) {
-    const configFile = configPath || DEFAULT_CONFIG_PATH;
+    this.configPath = configPath || DEFAULT_CONFIG_PATH;
+  }
 
-    if (!fs.existsSync(configFile)) {
-      throw new Error(`Configuration file not found at ${configFile}. Please create one or specify a different path.`);
+  public getConfig(): SyncConfig {
+    if (!fs.existsSync(this.configPath)) {
+      throw new Error(`Config file not found at ${this.configPath}`);
     }
 
     try {
-      this.config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-      this.validateConfig();
+      const config = JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
+      return config;
     } catch (error) {
-      throw new Error(`Failed to load configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to parse config file: ${error}`);
+    }
+  }
+
+  public updateConfig(config: SyncConfig): void {
+    try {
+      fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
+    } catch (error) {
+      throw new Error(`Failed to update config file: ${error}`);
     }
   }
 
@@ -30,21 +40,17 @@ export class ConfigManager {
     };
 
     for (const [section, fields] of Object.entries(required)) {
-      if (!this.config[section as keyof SyncConfig]) {
+      if (!this.getConfig()[section as keyof SyncConfig]) {
         throw new Error(`Missing required section: ${section}`);
       }
 
       for (const field of fields) {
-        const value = (this.config[section as keyof SyncConfig] as any)[field];
+        const value = (this.getConfig()[section as keyof SyncConfig] as any)[field];
         if (value === undefined || value === null) {
           throw new Error(`Missing required field: ${section}.${field}`);
         }
       }
     }
-  }
-
-  public getConfig(): SyncConfig {
-    return this.config;
   }
 
   public static createDefaultConfig(outputPath?: string): void {

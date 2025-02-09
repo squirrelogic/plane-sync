@@ -1,22 +1,49 @@
+import { NormalizedIssue } from './normalized';
+
 export interface Issue {
   id: string;
+  externalId?: string;  // ID from external system (e.g., GitHub issue number)
   title: string;
   description: string;
-  state: string;
-  labels: string[];
+  state: IssueState;
+  labels: Label[];
   assignees: string[];
   createdAt: string;
   updatedAt: string;
-  hash?: string;
+  metadata?: Record<string, any>;  // Store provider-specific data
+}
+
+export interface IssueState {
+  id: string;
+  name: string;
+  category: 'backlog' | 'todo' | 'in_progress' | 'ready' | 'done';
+  color?: string;
+}
+
+export interface Label {
+  id: string;
+  name: string;
+  color?: string;
+  description?: string;
 }
 
 export interface ProjectItem {
   id: string;
   title: string;
   body: string;
-  status: 'BACKLOG' | 'READY' | 'IN_PROGRESS' | 'DONE';
+  status: 'BACKLOG' | 'TODO' | 'IN_PROGRESS' | 'READY' | 'DONE';
   convertedToIssue: boolean;
   issueNumber?: number;
+}
+
+export interface AssigneeMapping {
+  githubUsername: string;
+  planeUserId: string;
+}
+
+export interface SyncOptions {
+  configPath?: string;
+  direction?: 'github-to-plane' | 'plane-to-github' | 'both';
 }
 
 export interface SyncConfig {
@@ -24,32 +51,28 @@ export interface SyncConfig {
     owner: string;
     repo: string;
     projectNumber: number;
-    isOrgProject: boolean;  // Whether this is an organization project
+    isOrgProject: boolean;
   };
   plane: {
-    baseUrl: string;  // For self-hosted instances
+    baseUrl: string;
     workspaceSlug: string;
     projectSlug: string;
   };
   sync: {
     direction: 'github-to-plane' | 'plane-to-github' | 'both';
-    autoConvertBacklogItems: boolean;  // Whether to automatically convert backlog items to issues
+    autoConvertBacklogItems: boolean;
+  };
+  assignees?: {
+    mappings: AssigneeMapping[];
   };
 }
 
-export interface SyncOptions {
-  configPath?: string;  // Path to config file, if not using default
-  githubRepo?: string;  // Optional now, can be in config
-  planeProject?: string;  // Optional now, can be in config
-  direction?: 'github-to-plane' | 'plane-to-github' | 'both';
-}
-
 export interface SyncState {
-  lastSync: string;
+  lastSync: string | null;
   issues: {
     [key: string]: {
-      githubId: string;
-      planeId: string;
+      sourceId: string;
+      targetId: string;
       lastHash: string;
       isProjectItem?: boolean;
     };
@@ -57,25 +80,25 @@ export interface SyncState {
 }
 
 export interface IssueChange {
-  source: 'github' | 'plane';
-  issue: Issue;
+  source: string;
+  issue: NormalizedIssue;
   lastSyncHash?: string;
 }
 
 export interface IssueConflict {
-  githubIssue: Issue;
-  planeIssue: Issue;
-  lastSyncHash?: string;
+  sourceIssue: NormalizedIssue;
+  targetIssue: NormalizedIssue;
+  lastSyncHash: string;
   conflictingFields: {
     field: string;
-    githubValue: any;
-    planeValue: any;
+    sourceValue: any;
+    targetValue: any;
   }[];
 }
 
 export interface SyncResult {
-  githubToPlaneChanges: IssueChange[];
-  planeToGithubChanges: IssueChange[];
+  sourceToTargetChanges: IssueChange[];
+  targetToSourceChanges: IssueChange[];
   conflicts: IssueConflict[];
   errors: Error[];
 }

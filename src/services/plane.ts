@@ -13,8 +13,15 @@ export class PlaneService {
   private workspaceSlug: string;
   private projectSlug: string;
   private states: PlaneState[] = [];
+  private assigneeMappings: Map<string, string>;
 
-  constructor(apiKey: string, baseUrl: string, workspaceSlug: string, projectSlug: string) {
+  constructor(
+    apiKey: string,
+    baseUrl: string,
+    workspaceSlug: string,
+    projectSlug: string,
+    assigneeMappings?: { githubUsername: string; planeUserId: string }[]
+  ) {
     this.client = axios.create({
       baseURL: baseUrl.endsWith('/') ? baseUrl + 'api/v1' : baseUrl + '/api/v1',
       headers: {
@@ -24,6 +31,9 @@ export class PlaneService {
     });
     this.workspaceSlug = workspaceSlug;
     this.projectSlug = projectSlug;
+    this.assigneeMappings = new Map(
+      assigneeMappings?.map(m => [m.githubUsername, m.planeUserId]) || []
+    );
   }
 
   private async initializeStates(): Promise<void> {
@@ -35,45 +45,63 @@ export class PlaneService {
     }
   }
 
-  private async mapGitHubStateToPlane(state: string, existingPlaneState?: string): Promise<string> {
+  private async mapGitHubStateToPlane(state: { id: string; name: string }, existingPlaneState?: string): Promise<string> {
     await this.initializeStates();
 
-    // Log current states and mapping request
-    console.log('Mapping GitHub state:', state);
-    console.log('Existing Plane state:', existingPlaneState);
-    console.log('Available Plane states:', this.states.map(s => `${s.id} (${s.group})`));
-
-    // If the issue is already canceled in Plane, preserve that state
+    // If there's an existing state in Plane, check if we should preserve it
     if (existingPlaneState) {
       const existingState = this.states.find(s => s.id === existingPlaneState);
-      if (existingState?.group === 'cancelled') {
-        console.log('Preserving cancelled state in Plane');
+      if (!existingState) return this.states[0].id;
+
+      // Only update state if it's explicitly different
+      const currentName = existingState.name.toLowerCase();
+      const targetState = state.name.toLowerCase();
+      // If the states roughly match, preserve the Plane state
+      if ((targetState === 'backlog' && currentName === 'backlog') ||
+          (targetState === 'todo' && currentName === 'todo') ||
+          (targetState === 'in progress' && currentName === 'in progress') ||
+          (targetState === 'done' && (currentName === 'done' || currentName === 'cancelled')) ||
+          (targetState === 'closed' && (currentName === 'done' || currentName === 'cancelled'))) {
         return existingPlaneState;
       }
     }
 
-    // GitHub states: open, closed
-    switch (state.toLowerCase()) {
-      case 'open':
-        const backlogState = this.states.find(s => s.group === 'backlog')?.id;
-        console.log('Mapping open to backlog state:', backlogState);
+    // Map GitHub project states to Plane states
+    switch (state.name.toLowerCase()) {
+      case 'backlog':
+        const backlogState = this.states.find(s => s.name.toLowerCase() === 'backlog')?.id;
         return backlogState || this.states[0].id;
+
+      case 'todo':
+        const todoState = this.states.find(s => s.name.toLowerCase() === 'todo')?.id;
+        return todoState || this.states[0].id;
+
+      case 'in progress':
+        const inProgressState = this.states.find(s => s.name.toLowerCase() === 'in progress')?.id;
+        return inProgressState || this.states[0].id;
+
+      case 'in review':
+        // Map In Review to In Progress in Plane
+        const reviewState = this.states.find(s => s.name.toLowerCase() === 'in progress')?.id;
+        return reviewState || this.states[0].id;
+
+      case 'done':
       case 'closed':
-        const completedState = this.states.find(s => s.group === 'completed')?.id;
-        console.log('Mapping closed to completed state:', completedState);
-        return completedState || this.states[0].id;
+        const doneState = this.states.find(s => s.name.toLowerCase() === 'done')?.id;
+        return doneState || this.states[0].id;
+
       default:
-        console.log('Using default state:', this.states[0].id);
         return this.states[0].id;
     }
   }
 
-  private mapPlaneStateToGitHub(stateId: string): 'open' | 'closed' {
+  private mapPlaneStateToGitHub(stateId: string): { id: string; name: string } {
     const state = this.states.find(s => s.id === stateId);
-    if (state?.group === 'completed' || state?.group === 'cancelled') {
-      return 'closed';
-    }
-    return 'open';
+    if (!state) return { id: '', name: 'BACKLOG' };
+
+    // Map Plane states to GitHub project states
+    const normalizedState = this.normalizeStateName(state.name);
+    return { id: '', name: normalizedState };
   }
 
   async getIssues(): Promise<Issue[]> {
@@ -81,7 +109,6 @@ export class PlaneService {
     const response = await this.client.get(
       `/workspaces/${this.workspaceSlug}/projects/${this.projectSlug}/issues/`
     );
-    console.log('Plane API Response:', JSON.stringify(response.data, null, 2));
 
     // The Plane API might return the issues in a nested structure
     const issues = response.data.results || response.data;
@@ -93,27 +120,63 @@ export class PlaneService {
 
     return issues.map((issue: any) => ({
       id: issue.id,
-      title: issue.title || issue.name, // Some APIs use name instead of title
+      title: issue.title || issue.name,
       description: issue.description || '',
       state: this.mapPlaneStateToGitHub(issue.state),
       labels: issue.labels || [],
-      assignees: [], // Don't include assignees since we can't map Plane IDs to GitHub usernames
+      // Deduplicate assignees and map them to GitHub usernames
+      assignees: Array.from(new Set(issue.assignees || [])).map(id => {
+        const githubUsername = Array.from(this.assigneeMappings.entries())
+          .find(([_, planeUserId]) => planeUserId === id)?.[0];
+        return githubUsername || id;
+      }).filter((username): username is string => username !== undefined),
       createdAt: issue.created_at,
       updatedAt: issue.updated_at,
       hash: this.generateHash(issue)
     }));
   }
 
+  async getIssue(issueId: string): Promise<Issue> {
+    await this.initializeStates();
+    const response = await this.client.get(
+      `/workspaces/${this.workspaceSlug}/projects/${this.projectSlug}/issues/${issueId}/`
+    );
+
+    const issue = response.data;
+    return {
+      id: issue.id,
+      title: issue.title || issue.name,
+      description: issue.description || '',
+      state: this.mapPlaneStateToGitHub(issue.state),
+      labels: issue.labels || [],
+      // Deduplicate assignees and map them to GitHub usernames
+      assignees: Array.from(new Set(issue.assignees || [])).map(id => {
+        const githubUsername = Array.from(this.assigneeMappings.entries())
+          .find(([_, planeUserId]) => planeUserId === id)?.[0];
+        return githubUsername || id;
+      }).filter((username): username is string => username !== undefined),
+      createdAt: issue.created_at,
+      updatedAt: issue.updated_at,
+      hash: this.generateHash(issue)
+    };
+  }
+
   async createIssue(issue: Omit<Issue, 'id' | 'hash'>): Promise<Issue> {
-    const stateId = await this.mapGitHubStateToPlane(issue.state);
+    const stateId = await this.mapGitHubStateToPlane({ id: '', name: issue.state.name }, undefined);
+
+    // Deduplicate and map GitHub usernames to Plane user IDs
+    const mappedAssignees = Array.from(new Set(issue.assignees || [])).map(username =>
+      this.assigneeMappings.get(username)
+    ).filter((id): id is string => id !== undefined);
+
     const response = await this.client.post(
       `/workspaces/${this.workspaceSlug}/projects/${this.projectSlug}/issues/`,
       {
         name: issue.title,
         description: issue.description || '',
         state: stateId,
-        labels: issue.labels || []
-        // Removed assignees since we don't sync them
+        labels: issue.labels || [],
+        assignees: mappedAssignees
       }
     );
 
@@ -128,14 +191,19 @@ export class PlaneService {
       description: createdIssue.description || '',
       state: this.mapPlaneStateToGitHub(createdIssue.state),
       labels: createdIssue.labels || [],
-      assignees: [], // Don't include assignees in the response
+      // Deduplicate assignees and map them back to GitHub usernames
+      assignees: Array.from(new Set(createdIssue.assignees || [])).map(id => {
+        const githubUsername = Array.from(this.assigneeMappings.entries())
+          .find(([_, planeUserId]) => planeUserId === id)?.[0];
+        return githubUsername || id;
+      }).filter((username): username is string => username !== undefined),
       createdAt: createdIssue.created_at,
       updatedAt: createdIssue.updated_at,
       hash: this.generateHash(createdIssue)
     };
   }
 
-  public async updateIssue(issueId: string, issue: Issue): Promise<void> {
+  public async updateIssue(issueId: string, issue: Issue): Promise<Issue> {
     // Get the current issue to check its state
     const response = await this.client.get(
       `/workspaces/${this.workspaceSlug}/projects/${this.projectSlug}/issues/${issueId}/`
@@ -143,29 +211,68 @@ export class PlaneService {
     const currentIssue = response.data;
 
     const stateId = await this.mapGitHubStateToPlane(issue.state, currentIssue.state);
+
+    // Deduplicate and map GitHub usernames to Plane user IDs
+    const mappedAssignees = Array.from(new Set(issue.assignees || [])).map(username =>
+      this.assigneeMappings.get(username)
+    ).filter((id): id is string => id !== undefined);
+
     const updateResponse = await this.client.patch(
       `/workspaces/${this.workspaceSlug}/projects/${this.projectSlug}/issues/${issueId}/`,
       {
         name: issue.title,
         description: issue.description || '',
         state: stateId,
-        labels: issue.labels || []
-        // Removed assignees since we don't sync them
+        labels: issue.labels || [],
+        assignees: mappedAssignees
       }
     );
 
     if (updateResponse.status !== 200) {
       throw new Error(`Failed to update issue: ${updateResponse.statusText}`);
     }
+
+    // Get the updated issue to return with its new hash
+    const updatedIssue = await this.getIssue(issueId);
+    return updatedIssue;
   }
 
   private generateHash(issue: any): string {
+    // If this is a raw Plane API response, map the state first
+    const state = typeof issue.state === 'string'
+      ? this.states.find(s => s.id === issue.state)?.name.toLowerCase() || 'backlog'
+      : typeof issue.state === 'object' && issue.state.name
+        ? issue.state.name.toLowerCase()
+        : 'backlog';
+
+    // Normalize the state name to match GitHub's format
+    const normalizedState = this.normalizeStateName(state);
+
     return objectHash({
-      title: issue.title || issue.name, // Match the same title field we use in getIssues
+      title: issue.title || issue.name,
       description: issue.description || '',
-      state: issue.state,
-      labels: issue.labels || []
-      // Removed assignees from hash calculation since we don't sync them
+      state: normalizedState,
+      labels: issue.labels || [],
+      assignees: issue.assignees || []
     });
+  }
+
+  private normalizeStateName(state: string): string {
+    switch (state.toLowerCase()) {
+      case 'backlog':
+        return 'BACKLOG';
+      case 'todo':
+        return 'TODO';
+      case 'in progress':
+        return 'IN_PROGRESS';
+      case 'ready':
+        return 'READY';
+      case 'done':
+      case 'cancelled':
+      case 'closed':
+        return 'DONE';
+      default:
+        return 'BACKLOG';
+    }
   }
 }

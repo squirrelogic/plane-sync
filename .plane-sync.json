@@ -1,17 +1,41 @@
 {
-    "github": {
-      "owner": "pre-litigation-suite",
-      "repo": "credit-saas",
-      "projectNumber": 1,
-      "isOrgProject": true
-    },
-    "plane": {
-      "baseUrl": "https://plane.squirrel.software",
-      "workspaceSlug": "squirrel-software",
-      "projectSlug": "07de602e-4d15-4df8-96ba-4df852c549c7"
-    },
-    "sync": {
-      "direction": "both",
-      "autoConvertBacklogItems": false
-    }
+  "github": {
+    "owner": "pre-litigation-suite",
+    "repo": "credit-saas",
+    "projectNumber": 1,
+    "isOrgProject": true
+  },
+  "plane": {
+    "baseUrl": "https://plane.squirrel.software",
+    "workspaceSlug": "squirrel-software",
+    "projectSlug": "07de602e-4d15-4df8-96ba-4df852c549c7"
+  },
+  "sync": {
+    "direction": "both",
+    "autoConvertBacklogItems": false
+  },
+  "assignees": {
+    "mappings": [
+      {
+        "githubUsername": "sbeardsley",
+        "planeUserId": "a760263d-5b9a-4f80-8665-8f8c45643b9c",
+        "name": "scott"
+      }
+    ],
+    "lastSyncedAt": "2025-02-09T06:16:42.484Z",
+    "github_users": [
+      {
+        "login": "sbeardsley"
+      },
+      {
+        "login": "stevenpalmieri"
+      }
+    ],
+    "plane_users": [
+      {
+        "id": "a760263d-5b9a-4f80-8665-8f8c45643b9c",
+        "display_name": "scott"
+      }
+    ]
   }
+}

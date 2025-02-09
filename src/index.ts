@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import dotenv from 'dotenv';
 import { sync } from './commands/sync';
 import { status } from './commands/status';
+import { syncAssignees } from './commands/assignees';
 import { ConfigManager } from './config';
 
 dotenv.config();
@@ -36,5 +37,16 @@ program
   .command('status')
   .description('Show sync status and last sync time')
   .action(status);
+
+program
+  .command('assignees')
+  .description('Synchronize assignee mappings between GitHub and Plane')
+  .option('-c, --config <path>', 'Path to configuration file')
+  .action((options) => {
+    syncAssignees(options).catch(error => {
+      console.error('Error:', error);
+      process.exit(1);
+    });
+  });
 
 program.parse();

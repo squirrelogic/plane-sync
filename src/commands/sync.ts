@@ -1,6 +1,6 @@
 import { GitHubService } from '../services/github';
 import { PlaneService } from '../services/plane';
-import { SyncOptions, SyncState, ProjectItem, Issue, IssueChange, IssueConflict, SyncResult } from '../types';
+import { SyncOptions, SyncState, ProjectItem, Issue, IssueChange, IssueConflict, SyncResult, SyncConfig, AssigneeMapping } from '../types';
 import { ConfigManager } from '../config';
 import fs from 'fs';
 import path from 'path';
@@ -26,6 +26,11 @@ function compareIssues(issue1: Issue, issue2: Issue): string[] {
           [...labels1].some(label => !labels2.has(label))) {
         conflicts.push(field);
       }
+    } else if (field === 'state') {
+      // Compare state names instead of the entire state object
+      if (issue1[field].name.toLowerCase() !== issue2[field].name.toLowerCase()) {
+        conflicts.push(field);
+      }
     } else if (issue1[field] !== issue2[field]) {
       conflicts.push(field);
     }
@@ -37,7 +42,8 @@ function compareIssues(issue1: Issue, issue2: Issue): string[] {
 async function identifyChangesAndConflicts(
   github: GitHubService,
   plane: PlaneService,
-  state: SyncState
+  state: SyncState,
+  config: SyncConfig
 ): Promise<SyncResult> {
   const result: SyncResult = {
     githubToPlaneChanges: [],
@@ -47,15 +53,56 @@ async function identifyChangesAndConflicts(
   };
 
   try {
-    // Get all issues from both systems
+    // Get all issues from both systems first
     const [githubIssues, planeIssues] = await Promise.all([
       github.getIssues(),
       plane.getIssues()
     ]);
 
+    // Check if assignee mappings exist and set up mapping if they do
+    let shouldMapAssignees = false;
+    let githubToPlaneMap = new Map<string, string>();
+    let planeToGithubMap = new Map<string, string>();
+
+    if (config.assignees?.mappings && config.assignees.mappings.length > 0) {
+      shouldMapAssignees = true;
+      const assigneeMappings = config.assignees.mappings;
+      githubToPlaneMap = new Map(assigneeMappings.map((m: AssigneeMapping) => [m.githubUsername, m.planeUserId]));
+      planeToGithubMap = new Map(assigneeMappings.map((m: AssigneeMapping) => [m.planeUserId, m.githubUsername]));
+    } else {
+      console.warn('Warning: No assignee mappings found. Run "plane-sync assignees" first to set up assignee mappings.');
+      console.warn('Proceeding with sync but assignees will not be synchronized...');
+    }
+
+    // Map assignees in GitHub issues, preserving original assignees if no mapping exists
+    const mappedGithubIssues = githubIssues.map(issue => {
+      if (!shouldMapAssignees) {
+        return issue; // Preserve original assignees if no mappings exist
+      }
+      return {
+        ...issue,
+        assignees: issue.assignees
+          .map(username => githubToPlaneMap.get(username))
+          .filter((id): id is string => id !== undefined)
+      };
+    });
+
+    // Map assignees in Plane issues, preserving original assignees if no mapping exists
+    const mappedPlaneIssues = planeIssues.map(issue => {
+      if (!shouldMapAssignees) {
+        return issue; // Preserve original assignees if no mappings exist
+      }
+      return {
+        ...issue,
+        assignees: issue.assignees
+          .map(id => planeToGithubMap.get(id))
+          .filter((username): username is string => username !== undefined)
+      };
+    });
+
     // Create maps for easier lookup
-    const githubIssueMap = new Map(githubIssues.map(i => [i.id, i]));
-    const planeIssueMap = new Map(planeIssues.map(i => [i.id, i]));
+    const githubIssueMap = new Map(mappedGithubIssues.map(i => [i.id, i]));
+    const planeIssueMap = new Map(mappedPlaneIssues.map(i => [i.id, i]));
     const stateMap = state.issues || {};
 
     // Check each GitHub issue
@@ -146,9 +193,334 @@ async function identifyChangesAndConflicts(
   return result;
 }
 
+interface SyncPlanItem {
+  githubIssue: string;
+  planeIssue: string;
+  action: string;
+  direction: string;
+  reason: string;
+  currentHash?: string;
+  lastSyncHash?: string;
+  fieldChanges?: {
+    field: string;
+    oldValue: any;
+    newValue: any;
+  }[];
+}
+
+async function generateSyncPlan(
+  syncResult: SyncResult,
+  github: GitHubService,
+  plane: PlaneService,
+  state: SyncState
+): Promise<SyncPlanItem[]> {
+  const plan: SyncPlanItem[] = [];
+
+  // Process GitHub to Plane changes
+  for (const change of syncResult.githubToPlaneChanges) {
+    const stateEntry = Object.values(state.issues).find(i => i.githubId === change.issue.id);
+    if (stateEntry) {
+      const planeIssue = await plane.getIssue(stateEntry.planeId);
+      const fieldChanges = compareIssuesDetailed(change.issue, planeIssue);
+      plan.push({
+        githubIssue: `#${change.issue.id}`,
+        planeIssue: stateEntry.planeId,
+        action: 'Update',
+        direction: 'GitHub → Plane',
+        reason: 'GitHub issue modified since last sync',
+        currentHash: change.issue.hash,
+        lastSyncHash: stateEntry.lastHash,
+        fieldChanges
+      });
+    } else {
+      plan.push({
+        githubIssue: `#${change.issue.id}`,
+        planeIssue: 'New',
+        action: 'Create',
+        direction: 'GitHub → Plane',
+        reason: 'New issue in GitHub',
+        currentHash: change.issue.hash
+      });
+    }
+  }
+
+  // Process Plane to GitHub changes
+  for (const change of syncResult.planeToGithubChanges) {
+    const stateEntry = Object.values(state.issues).find(i => i.planeId === change.issue.id);
+    if (stateEntry) {
+      const githubIssue = await github.getIssue(stateEntry.githubId);
+      const fieldChanges = compareIssuesDetailed(githubIssue, change.issue);
+      plan.push({
+        githubIssue: `#${stateEntry.githubId}`,
+        planeIssue: change.issue.id,
+        action: 'Update',
+        direction: 'Plane → GitHub',
+        reason: 'Plane issue modified since last sync',
+        currentHash: change.issue.hash,
+        lastSyncHash: stateEntry.lastHash,
+        fieldChanges
+      });
+    } else {
+      plan.push({
+        githubIssue: 'New',
+        planeIssue: change.issue.id,
+        action: 'Create',
+        direction: 'Plane → GitHub',
+        reason: 'New issue in Plane',
+        currentHash: change.issue.hash
+      });
+    }
+  }
+
+  // Add conflicts to the plan
+  for (const conflict of syncResult.conflicts) {
+    plan.push({
+      githubIssue: `#${conflict.githubIssue.id}`,
+      planeIssue: conflict.planeIssue.id,
+      action: 'Conflict',
+      direction: '⚠️',
+      reason: `Conflicting changes in: ${conflict.conflictingFields.map(f => f.field).join(', ')}`,
+      currentHash: conflict.githubIssue.hash,
+      lastSyncHash: conflict.lastSyncHash,
+      fieldChanges: conflict.conflictingFields.map(f => ({
+        field: f.field,
+        oldValue: f.githubValue,
+        newValue: f.planeValue
+      }))
+    });
+  }
+
+  return plan;
+}
+
+function compareIssuesDetailed(issue1: Issue, issue2: Issue): { field: string; oldValue: any; newValue: any; }[] {
+  const changes: { field: string; oldValue: any; newValue: any; }[] = [];
+  const fields: (keyof Issue)[] = ['title', 'description', 'state', 'labels'];
+
+  for (const field of fields) {
+    if (field === 'labels') {
+      const labels1 = new Set(issue1[field]);
+      const labels2 = new Set(issue2[field]);
+      if (labels1.size !== labels2.size || [...labels1].some(label => !labels2.has(label))) {
+        changes.push({
+          field,
+          oldValue: [...labels1],
+          newValue: [...labels2]
+        });
+      }
+    } else if (field === 'state') {
+      if (issue1[field].name.toLowerCase() !== issue2[field].name.toLowerCase()) {
+        changes.push({
+          field,
+          oldValue: issue1[field].name,
+          newValue: issue2[field].name
+        });
+      }
+    } else if (issue1[field] !== issue2[field]) {
+      changes.push({
+        field,
+        oldValue: issue1[field],
+        newValue: issue2[field]
+      });
+    }
+  }
+
+  return changes;
+}
+
+function displaySyncPlan(plan: SyncPlanItem[]): void {
+  if (plan.length === 0) {
+    console.log('\nNo changes to sync.');
+    return;
+  }
+
+  console.log('\nSync Plan:');
+
+  for (const item of plan) {
+    console.log('\n' + '─'.repeat(120));
+    console.log(`Action:       ${item.action}`);
+    console.log(`Direction:    ${item.direction}`);
+    console.log(`GitHub Issue: ${item.githubIssue}`);
+    console.log(`Plane Issue:  ${item.planeIssue}`);
+    console.log(`Reason:       ${item.reason}`);
+
+    if (item.currentHash) {
+      console.log(`Current Hash: ${item.currentHash.substring(0, 8)}...`);
+    }
+    if (item.lastSyncHash) {
+      console.log(`Last Sync:    ${item.lastSyncHash.substring(0, 8)}...`);
+    }
+
+    if (item.fieldChanges && item.fieldChanges.length > 0) {
+      console.log('\nField Changes:');
+      for (const change of item.fieldChanges) {
+        console.log(`  ${change.field}:`);
+        if (item.direction === 'GitHub → Plane') {
+          if (Array.isArray(change.oldValue)) {
+            console.log(`    GitHub (source): [${change.oldValue.join(', ')}]`);
+            console.log(`    Plane (target):  [${change.newValue.join(', ')}]`);
+          } else if (change.field === 'state') {
+            console.log(`    GitHub (source): ${JSON.stringify(change.oldValue)}`);
+            console.log(`    Plane (target):  ${JSON.stringify(change.newValue)}`);
+          } else {
+            console.log(`    GitHub (source): ${change.oldValue}`);
+            console.log(`    Plane (target):  ${change.newValue}`);
+          }
+        } else if (item.direction === 'Plane → GitHub') {
+          if (Array.isArray(change.oldValue)) {
+            console.log(`    Plane (source):  [${change.oldValue.join(', ')}]`);
+            console.log(`    GitHub (target): [${change.newValue.join(', ')}]`);
+          } else if (change.field === 'state') {
+            console.log(`    Plane (source):  ${JSON.stringify(change.oldValue)}`);
+            console.log(`    GitHub (target): ${JSON.stringify(change.newValue)}`);
+          } else {
+            console.log(`    Plane (source):  ${change.oldValue}`);
+            console.log(`    GitHub (target): ${change.newValue}`);
+          }
+        } else {
+          // For conflicts
+          if (Array.isArray(change.oldValue)) {
+            console.log(`    GitHub: [${change.oldValue.join(', ')}]`);
+            console.log(`    Plane:  [${change.newValue.join(', ')}]`);
+          } else if (change.field === 'state') {
+            console.log(`    GitHub: ${JSON.stringify(change.oldValue)}`);
+            console.log(`    Plane:  ${JSON.stringify(change.newValue)}`);
+          } else {
+            console.log(`    GitHub: ${change.oldValue}`);
+            console.log(`    Plane:  ${change.newValue}`);
+          }
+        }
+      }
+    }
+  }
+  console.log('\n' + '─'.repeat(120));
+}
+
+async function promptToProceed(): Promise<boolean> {
+  return new Promise(resolve => {
+    const readline = require('readline').createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    readline.question('\nDo you want to proceed with the sync? (y/N) ', (answer: string) => {
+      readline.close();
+      resolve(answer.toLowerCase() === 'y');
+    });
+  });
+}
+
+async function displaySideBySideComparison(
+  githubIssue: Issue,
+  planeIssue: Issue | null,
+  direction: string,
+  lastSyncHash?: string
+): Promise<void> {
+  const terminalWidth = process.stdout.columns || 120;
+  const halfWidth = Math.floor(terminalWidth / 2) - 2;
+
+  console.log('\n' + '═'.repeat(terminalWidth));
+
+  // Header
+  const header = `GitHub Issue #${githubIssue.id}${direction}${planeIssue ? `Plane Issue ${planeIssue.id}` : 'New Plane Issue'}`;
+  console.log(header.padStart(Math.floor((terminalWidth + header.length) / 2)));
+
+  console.log('═'.repeat(terminalWidth));
+
+  // Previous sync hash if available
+  if (lastSyncHash) {
+    console.log(`Last Sync Hash: ${lastSyncHash}`);
+    console.log('─'.repeat(terminalWidth));
+  }
+
+  // Current hashes
+  const githubHashLine = `Current Hash: ${githubIssue.hash?.substring(0, 8) || 'N/A'}`;
+  const planeHashLine = planeIssue ? `Current Hash: ${planeIssue.hash?.substring(0, 8) || 'N/A'}` : 'N/A';
+  console.log(githubHashLine.padEnd(halfWidth) + '│' + planeHashLine.padStart(halfWidth));
+
+  console.log('─'.repeat(terminalWidth));
+
+  // Title
+  console.log('TITLE'.padEnd(terminalWidth));
+  console.log(githubIssue.title.padEnd(halfWidth) + '│' + (planeIssue?.title || '').padStart(halfWidth));
+
+  console.log('─'.repeat(terminalWidth));
+
+  // State
+  console.log('STATE'.padEnd(terminalWidth));
+  console.log(githubIssue.state.name.padEnd(halfWidth) + '│' + (planeIssue?.state.name || '').padStart(halfWidth));
+
+  console.log('─'.repeat(terminalWidth));
+
+  // Description
+  console.log('DESCRIPTION'.padEnd(terminalWidth));
+  const githubDesc = githubIssue.description || '';
+  const planeDesc = planeIssue?.description || '';
+  const githubLines = githubDesc.split('\n');
+  const planeLines = planeDesc.split('\n');
+  const maxLines = Math.max(githubLines.length, planeLines.length);
+
+  for (let i = 0; i < maxLines; i++) {
+    const githubLine = (githubLines[i] || '').padEnd(halfWidth);
+    const planeLine = (planeLines[i] || '').padStart(halfWidth);
+    console.log(githubLine + '│' + planeLine);
+  }
+
+  console.log('─'.repeat(terminalWidth));
+
+  // Labels
+  console.log('LABELS'.padEnd(terminalWidth));
+  console.log(
+    JSON.stringify(githubIssue.labels).padEnd(halfWidth) + '│' +
+    JSON.stringify(planeIssue?.labels || []).padStart(halfWidth)
+  );
+
+  console.log('─'.repeat(terminalWidth));
+
+  // Assignees
+  console.log('ASSIGNEES'.padEnd(terminalWidth));
+  console.log(
+    JSON.stringify(githubIssue.assignees).padEnd(halfWidth) + '│' +
+    JSON.stringify(planeIssue?.assignees || []).padStart(halfWidth)
+  );
+
+  console.log('═'.repeat(terminalWidth));
+}
+
+async function promptToSyncIssue(): Promise<boolean> {
+  return new Promise(resolve => {
+    const readline = require('readline').createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    readline.question('\nSync this issue? (y/N/q to quit) ', (answer: string) => {
+      readline.close();
+      if (answer.toLowerCase() === 'q') {
+        console.log('\nSync cancelled. Exiting...');
+        process.exit(0);
+      }
+      resolve(answer.toLowerCase() === 'y');
+    });
+  });
+}
+
 export async function sync(options: SyncOptions): Promise<void> {
   // Load configuration
   const config = new ConfigManager(options.configPath).getConfig();
+
+  // Override direction if specified in options
+  if (options.direction) {
+    config.sync.direction = options.direction;
+  }
+
+  // Check for assignee mappings right at the start
+  if (!config.assignees?.mappings || config.assignees.mappings.length === 0) {
+    console.error('\nError: No assignee mappings found.');
+    console.error('Please run "plane-sync assignees" first to set up assignee mappings between GitHub and Plane users.');
+    console.error('This is required to ensure proper synchronization of issue assignments.');
+    process.exit(1);
+  }
 
   // Generate state file name based on GitHub repo
   const repoName = config.github.repo;
@@ -172,7 +544,8 @@ export async function sync(options: SyncOptions): Promise<void> {
     process.env.PLANE_API_KEY,
     config.plane.baseUrl,
     config.plane.workspaceSlug,
-    config.plane.projectSlug
+    config.plane.projectSlug,
+    config.assignees?.mappings
   );
 
   const syncState = fs.existsSync(stateFilePath)
@@ -184,7 +557,7 @@ export async function sync(options: SyncOptions): Promise<void> {
     await syncGitHubProjectItems(github, plane, syncState, config.sync.autoConvertBacklogItems);
 
     // Identify all changes and conflicts
-    const syncResult = await identifyChangesAndConflicts(github, plane, syncState);
+    const syncResult = await identifyChangesAndConflicts(github, plane, syncState, config);
 
     if (syncResult.errors.length > 0) {
       console.error('Errors occurred during sync analysis:');
@@ -192,63 +565,94 @@ export async function sync(options: SyncOptions): Promise<void> {
       process.exit(1);
     }
 
-    // Process Plane to GitHub changes first
-    console.log(`\nSyncing ${syncResult.planeToGithubChanges.length} changes from Plane to GitHub...`);
-    for (const change of syncResult.planeToGithubChanges) {
-      const stateEntry = Object.values(syncState.issues).find(
-        (i): i is { githubId: string; planeId: string; lastHash: string } =>
-          Boolean(i && typeof i === 'object' && 'planeId' in i && i.planeId === change.issue.id)
-      );
-      if (stateEntry) {
-        await github.updateIssue(stateEntry.githubId, change.issue);
-        stateEntry.lastHash = change.issue.hash || '';
-        console.log(`Updated GitHub issue #${stateEntry.githubId}`);
-      } else {
-        const githubIssue = await github.createIssue(change.issue);
-        await github.addIssueToProject(parseInt(githubIssue.id));
-        syncState.issues[githubIssue.id] = {
-          githubId: githubIssue.id,
-          planeId: change.issue.id,
-          lastHash: change.issue.hash || ''
-        };
-        console.log(`Created GitHub issue #${githubIssue.id}`);
-      }
+    // If there are no changes, exit early
+    if (syncResult.githubToPlaneChanges.length === 0 &&
+        syncResult.planeToGithubChanges.length === 0 &&
+        syncResult.conflicts.length === 0) {
+      console.log('\nNo changes to sync. Exiting...');
+      return;
     }
 
-    // Then process GitHub to Plane changes
-    console.log(`\nSyncing ${syncResult.githubToPlaneChanges.length} changes from GitHub to Plane...`);
-    for (const change of syncResult.githubToPlaneChanges) {
-      const stateEntry = Object.values(syncState.issues).find(
-        (i): i is { githubId: string; planeId: string; lastHash: string } =>
-          Boolean(i && typeof i === 'object' && 'githubId' in i && i.githubId === change.issue.id)
-      );
-      if (stateEntry) {
-        await plane.updateIssue(stateEntry.planeId, change.issue);
-        stateEntry.lastHash = change.issue.hash || '';
-        console.log(`Updated Plane issue for GitHub #${change.issue.id}`);
-      } else {
-        const planeIssue = await plane.createIssue(change.issue);
-        syncState.issues[change.issue.id] = {
-          githubId: change.issue.id,
-          planeId: planeIssue.id,
-          lastHash: change.issue.hash || ''
-        };
-        console.log(`Created Plane issue for GitHub #${change.issue.id}`);
-      }
-    }
+    // Process changes based on sync direction
+    if (config.sync.direction === 'plane-to-github' || config.sync.direction === 'both') {
+      // Process Plane to GitHub changes
+      console.log(`\nProcessing ${syncResult.planeToGithubChanges.length} changes from Plane to GitHub...`);
+      for (const change of syncResult.planeToGithubChanges) {
+        const stateEntry = Object.values(syncState.issues).find(
+          (i): i is { githubId: string; planeId: string; lastHash: string } =>
+            Boolean(i && typeof i === 'object' && 'planeId' in i && i.planeId === change.issue.id)
+        );
 
-    // Report conflicts
-    if (syncResult.conflicts.length > 0) {
-      console.log('\nConflicts detected:');
-      for (const conflict of syncResult.conflicts) {
-        console.log(`\nConflict between GitHub #${conflict.githubIssue.id} and Plane issue ${conflict.planeIssue.id}:`);
-        for (const field of conflict.conflictingFields) {
-          console.log(`  - ${field.field}:`);
-          console.log(`    GitHub: ${field.githubValue}`);
-          console.log(`    Plane:  ${field.planeValue}`);
+        if (stateEntry) {
+          // Show side by side comparison for existing issue
+          const githubIssue = await github.getIssue(stateEntry.githubId);
+          await displaySideBySideComparison(githubIssue, change.issue, ' ← ', stateEntry.lastHash);
+        } else {
+          // Show side by side comparison for new issue
+          const dummyGithubIssue: Issue = {
+            id: 'NEW',
+            title: '',
+            description: '',
+            state: { id: '', name: '' },
+            labels: [],
+            assignees: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          await displaySideBySideComparison(dummyGithubIssue, change.issue, ' ← ');
         }
+
+        const shouldSync = await promptToSyncIssue();
+        if (!shouldSync) {
+          console.log('Skipping this issue...');
+          continue;
+        }
+
+        // ... rest of the Plane to GitHub sync logic ...
       }
-      console.log('\nPlease resolve these conflicts manually and run sync again.');
+    }
+
+    if (config.sync.direction === 'github-to-plane' || config.sync.direction === 'both') {
+      // Process GitHub to Plane changes
+      console.log(`\nProcessing ${syncResult.githubToPlaneChanges.length} changes from GitHub to Plane...`);
+      for (const change of syncResult.githubToPlaneChanges) {
+        const stateEntry = Object.values(syncState.issues).find(
+          (i): i is { githubId: string; planeId: string; lastHash: string } =>
+            Boolean(i && typeof i === 'object' && 'githubId' in i && i.githubId === change.issue.id)
+        );
+
+        if (stateEntry) {
+          // Show side by side comparison for existing issue
+          const planeIssue = await plane.getIssue(stateEntry.planeId);
+          await displaySideBySideComparison(change.issue, planeIssue, ' → ', stateEntry.lastHash);
+        } else {
+          // Show side by side comparison for new issue
+          await displaySideBySideComparison(change.issue, null, ' → ');
+        }
+
+        const shouldSync = await promptToSyncIssue();
+        if (!shouldSync) {
+          console.log('Skipping this issue...');
+          continue;
+        }
+
+        // ... rest of the GitHub to Plane sync logic ...
+      }
+    }
+
+    // Show conflicts one at a time
+    if (syncResult.conflicts.length > 0) {
+      console.log(`\nProcessing ${syncResult.conflicts.length} conflicts...`);
+      for (const conflict of syncResult.conflicts) {
+        await displaySideBySideComparison(
+          conflict.githubIssue,
+          conflict.planeIssue,
+          ' ⚠️ ',
+          conflict.lastSyncHash
+        );
+        console.log('\nThis issue has conflicts. Please resolve manually and run sync again.');
+        await promptToSyncIssue(); // Just to pause and wait for acknowledgment
+      }
     }
 
     // Update sync state
@@ -295,7 +699,10 @@ async function syncGitHubProjectItems(
         const planeIssue = await plane.createIssue({
           title: item.title,
           description: item.body,
-          state: item.status === 'DONE' ? 'closed' : 'open',
+          state: {
+            id: '',
+            name: item.status === 'DONE' ? 'closed' : 'open'
+          },
           labels: [],
           assignees: [],
           createdAt: new Date().toISOString(),
@@ -313,4 +720,15 @@ async function syncGitHubProjectItems(
       }
     }
   }
+}
+
+async function findMatchingGitHubIssue(github: GitHubService, planeIssue: Issue): Promise<Issue | null> {
+  // Get all GitHub issues
+  const githubIssues = await github.getIssues();
+
+  // Look for an issue with matching title and description
+  return githubIssues.find(issue =>
+    issue.title === planeIssue.title &&
+    issue.description === planeIssue.description
+  ) || null;
 }
