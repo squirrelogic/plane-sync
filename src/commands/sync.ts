@@ -4,12 +4,23 @@ import { SyncOptions, SyncState, ProjectItem } from '../types';
 import { ConfigManager } from '../config';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
-const STATE_FILE = path.join(process.cwd(), '.plane-sync-state.json');
+// Get the home directory and create .plane-sync if it doesn't exist
+const homeDir = os.homedir();
+const planeSyncDir = path.join(homeDir, '.plane-sync');
+if (!fs.existsSync(planeSyncDir)) {
+  fs.mkdirSync(planeSyncDir);
+}
 
 export async function sync(options: SyncOptions): Promise<void> {
   // Load configuration
   const config = new ConfigManager(options.configPath).getConfig();
+
+  // Generate state file name based on GitHub repo
+  const repoName = config.github.repo;
+  const stateFileName = `${repoName}-plane-sync-state.json`;
+  const stateFilePath = path.join(planeSyncDir, stateFileName);
 
   if (!process.env.GITHUB_TOKEN || !process.env.PLANE_API_KEY) {
     console.error('Error: Missing required environment variables GITHUB_TOKEN or PLANE_API_KEY');
@@ -31,28 +42,27 @@ export async function sync(options: SyncOptions): Promise<void> {
     config.plane.projectSlug
   );
 
-  // Load existing state
-  let state: SyncState = { lastSync: '', issues: {} };
-  if (fs.existsSync(STATE_FILE)) {
-    state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-  }
+  // Use this stateFilePath instead of the local one
+  const syncState = fs.existsSync(stateFilePath)
+    ? JSON.parse(fs.readFileSync(stateFilePath, 'utf8'))
+    : { lastSync: null };
 
   try {
     // First, handle GitHub project items
-    await syncGitHubProjectItems(github, plane, state, config.sync.autoConvertBacklogItems);
+    await syncGitHubProjectItems(github, plane, syncState, config.sync.autoConvertBacklogItems);
 
     // Then handle regular issue sync
     if (config.sync.direction === 'github-to-plane' || config.sync.direction === 'both') {
-      await syncGitHubToPlane(github, plane, state);
+      await syncGitHubToPlane(github, plane, syncState);
     }
 
     if (config.sync.direction === 'plane-to-github' || config.sync.direction === 'both') {
-      await syncPlaneToGitHub(plane, github, state);
+      await syncPlaneToGitHub(plane, github, syncState);
     }
 
     // Update sync state
-    state.lastSync = new Date().toISOString();
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+    syncState.lastSync = new Date().toISOString();
+    fs.writeFileSync(stateFilePath, JSON.stringify(syncState, null, 2));
 
     console.log('Sync completed successfully!');
   } catch (error) {
