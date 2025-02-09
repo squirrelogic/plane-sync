@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.13.0](https://github.com/squirrelogic/plane-sync/compare/v0.12.0...v0.13.0) (2025-02-09)
+
+
+### Features
+
+* store sync-state in ~/.plane-sync ([22dca39](https://github.com/squirrelogic/plane-sync/commit/22dca39d598f50d98f13098014354f75250074f8))
+
 ## [0.12.0](https://github.com/squirrelogic/plane-sync/compare/v0.11.0...v0.12.0) (2025-02-09)
 
 
