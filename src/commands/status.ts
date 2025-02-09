@@ -1,16 +1,26 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { SyncState } from '../types';
+import { ConfigManager } from '../config';
 
-const STATE_FILE = path.join(process.cwd(), '.plane-sync-state.json');
+// Get the home directory and .plane-sync directory
+const homeDir = os.homedir();
+const planeSyncDir = path.join(homeDir, '.plane-sync');
 
 export async function status(): Promise<void> {
-  if (!fs.existsSync(STATE_FILE)) {
+  // Load configuration to get repo name
+  const config = new ConfigManager().getConfig();
+  const repoName = config.github.repo;
+  const stateFileName = `${repoName}-plane-sync-state.json`;
+  const stateFilePath = path.join(planeSyncDir, stateFileName);
+
+  if (!fs.existsSync(stateFilePath)) {
     console.log('No sync state found. Run sync first to initialize.');
     return;
   }
 
-  const state: SyncState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+  const state: SyncState = JSON.parse(fs.readFileSync(stateFilePath, 'utf8'));
   const issueCount = Object.keys(state.issues).length;
 
   console.log('\nSync Status:');
