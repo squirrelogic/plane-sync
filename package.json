@@ -1,6 +1,6 @@
 {
   "name": "@squirrelogic/plane-sync",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "CLI tool to sync GitHub issues with Plane",
   "main": "dist/index.js",
   "bin": {
