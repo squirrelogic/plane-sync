@@ -35,15 +35,35 @@ export class PlaneService {
     }
   }
 
-  private async mapGitHubStateToPlane(state: string): Promise<string> {
+  private async mapGitHubStateToPlane(state: string, existingPlaneState?: string): Promise<string> {
     await this.initializeStates();
+
+    // Log current states and mapping request
+    console.log('Mapping GitHub state:', state);
+    console.log('Existing Plane state:', existingPlaneState);
+    console.log('Available Plane states:', this.states.map(s => `${s.id} (${s.group})`));
+
+    // If the issue is already canceled in Plane, preserve that state
+    if (existingPlaneState) {
+      const existingState = this.states.find(s => s.id === existingPlaneState);
+      if (existingState?.group === 'cancelled') {
+        console.log('Preserving cancelled state in Plane');
+        return existingPlaneState;
+      }
+    }
+
     // GitHub states: open, closed
     switch (state.toLowerCase()) {
       case 'open':
-        return this.states.find(s => s.group === 'backlog')?.id || this.states[0].id;
+        const backlogState = this.states.find(s => s.group === 'backlog')?.id;
+        console.log('Mapping open to backlog state:', backlogState);
+        return backlogState || this.states[0].id;
       case 'closed':
-        return this.states.find(s => s.group === 'completed')?.id || this.states[0].id;
+        const completedState = this.states.find(s => s.group === 'completed')?.id;
+        console.log('Mapping closed to completed state:', completedState);
+        return completedState || this.states[0].id;
       default:
+        console.log('Using default state:', this.states[0].id);
         return this.states[0].id;
     }
   }
@@ -61,15 +81,23 @@ export class PlaneService {
     const response = await this.client.get(
       `/workspaces/${this.workspaceSlug}/projects/${this.projectSlug}/issues/`
     );
-    const issues = response.data;
+    console.log('Plane API Response:', JSON.stringify(response.data, null, 2));
+
+    // The Plane API might return the issues in a nested structure
+    const issues = response.data.results || response.data;
+
+    if (!Array.isArray(issues)) {
+      console.error('Unexpected API response structure:', issues);
+      throw new Error('Unexpected API response structure: issues is not an array');
+    }
 
     return issues.map((issue: any) => ({
       id: issue.id,
-      title: issue.title,
+      title: issue.title || issue.name, // Some APIs use name instead of title
       description: issue.description || '',
       state: this.mapPlaneStateToGitHub(issue.state),
       labels: issue.labels || [],
-      assignees: issue.assignees || [],
+      assignees: [], // Don't include assignees since we can't map Plane IDs to GitHub usernames
       createdAt: issue.created_at,
       updatedAt: issue.updated_at,
       hash: this.generateHash(issue)
@@ -82,10 +110,10 @@ export class PlaneService {
       `/workspaces/${this.workspaceSlug}/projects/${this.projectSlug}/issues/`,
       {
         name: issue.title,
-        description: issue.description,
+        description: issue.description || '',
         state: stateId,
-        labels: issue.labels,
-        assignees: issue.assignees
+        labels: issue.labels || []
+        // Removed assignees since we don't sync them
       }
     );
 
@@ -95,35 +123,49 @@ export class PlaneService {
 
     const createdIssue = response.data;
     return {
-      ...createdIssue,
+      id: createdIssue.id,
+      title: createdIssue.title || createdIssue.name,
+      description: createdIssue.description || '',
       state: this.mapPlaneStateToGitHub(createdIssue.state),
+      labels: createdIssue.labels || [],
+      assignees: [], // Don't include assignees in the response
+      createdAt: createdIssue.created_at,
+      updatedAt: createdIssue.updated_at,
       hash: this.generateHash(createdIssue)
     };
   }
 
   public async updateIssue(issueId: string, issue: Issue): Promise<void> {
-    const stateId = await this.mapGitHubStateToPlane(issue.state);
-    const response = await this.client.patch(
+    // Get the current issue to check its state
+    const response = await this.client.get(
+      `/workspaces/${this.workspaceSlug}/projects/${this.projectSlug}/issues/${issueId}/`
+    );
+    const currentIssue = response.data;
+
+    const stateId = await this.mapGitHubStateToPlane(issue.state, currentIssue.state);
+    const updateResponse = await this.client.patch(
       `/workspaces/${this.workspaceSlug}/projects/${this.projectSlug}/issues/${issueId}/`,
       {
         name: issue.title,
         description: issue.description || '',
         state: stateId,
+        labels: issue.labels || []
+        // Removed assignees since we don't sync them
       }
     );
 
-    if (response.status !== 200) {
-      throw new Error(`Failed to update issue: ${response.statusText}`);
+    if (updateResponse.status !== 200) {
+      throw new Error(`Failed to update issue: ${updateResponse.statusText}`);
     }
   }
 
   private generateHash(issue: any): string {
     return objectHash({
-      title: issue.title,
-      description: issue.description,
+      title: issue.title || issue.name, // Match the same title field we use in getIssues
+      description: issue.description || '',
       state: issue.state,
-      labels: issue.labels,
-      assignees: issue.assignees
+      labels: issue.labels || []
+      // Removed assignees from hash calculation since we don't sync them
     });
   }
 }

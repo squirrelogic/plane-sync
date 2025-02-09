@@ -55,3 +55,27 @@ export interface SyncState {
     };
   };
 }
+
+export interface IssueChange {
+  source: 'github' | 'plane';
+  issue: Issue;
+  lastSyncHash?: string;
+}
+
+export interface IssueConflict {
+  githubIssue: Issue;
+  planeIssue: Issue;
+  lastSyncHash?: string;
+  conflictingFields: {
+    field: string;
+    githubValue: any;
+    planeValue: any;
+  }[];
+}
+
+export interface SyncResult {
+  githubToPlaneChanges: IssueChange[];
+  planeToGithubChanges: IssueChange[];
+  conflicts: IssueConflict[];
+  errors: Error[];
+}
