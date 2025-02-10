@@ -154,15 +154,35 @@ export class PlaneClient implements IssueTrackingClient {
   async createIssue(projectRef: string, data: CreateIssueData): Promise<BaseIssue> {
     const { workspaceId, projectId } = this.parseProjectRef(projectRef);
     const planeData = await this.mapBaseToPlaneIssue(data);
-    const issue = await this.createIssueInApi(workspaceId, projectId, planeData as CreatePlaneIssueData);
+    const issue = await this.createIssueInApi(workspaceId, projectId, {
+      title: data.title,
+      name: data.title,
+      description: data.description,
+      state: data.state,
+      state_id: typeof data.state === 'string' ? data.state : data.state.id,
+      label_ids: Array.isArray(data.labels)
+        ? data.labels.map(label => typeof label === 'string' ? label : label.id)
+        : undefined,
+      assignee_ids: [],
+      metadata: data.metadata
+    });
     return this.mapPlaneIssueToBase(issue);
   }
 
   async updateIssue(projectRef: string, issueId: string, data: UpdateIssueData): Promise<BaseIssue> {
     const { workspaceId, projectId } = this.parseProjectRef(projectRef);
-    const existingIssue = await this.getIssueFromApi(workspaceId, projectId, issueId);
-    const planeData = await this.mapBaseToPlaneIssue(data, existingIssue);
-    const issue = await this.updateIssueInApi(workspaceId, projectId, issueId, planeData as UpdatePlaneIssueData);
+    const planeData = await this.mapBaseToPlaneIssue(data);
+    const issue = await this.updateIssueInApi(workspaceId, projectId, issueId, {
+      title: data.title,
+      name: data.title,
+      description: data.description,
+      state: data.state,
+      state_id: typeof data.state === 'string' ? data.state : data.state?.id,
+      label_ids: Array.isArray(data.labels)
+        ? data.labels.map(label => typeof label === 'string' ? label : label.id)
+        : undefined,
+      assignee_ids: []
+    });
     return this.mapPlaneIssueToBase(issue);
   }
 
@@ -195,33 +215,56 @@ export class PlaneClient implements IssueTrackingClient {
 
   // API implementation methods
   protected async getIssuesFromApi(workspaceId: string, projectId: string): Promise<PlaneIssue[]> {
-    throw new Error('Not implemented');
+    const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/issues/`;
+    return this.fetchApi(endpoint);
   }
 
   protected async getIssueFromApi(workspaceId: string, projectId: string, issueId: string): Promise<PlaneIssue> {
-    throw new Error('Not implemented');
+    const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/issues/${issueId}/`;
+    return this.fetchApi(endpoint);
   }
 
   protected async createIssueInApi(workspaceId: string, projectId: string, data: CreatePlaneIssueData): Promise<PlaneIssue> {
-    throw new Error('Not implemented');
+    const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/issues/`;
+    return this.fetchApi(endpoint, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: data.name || data.title,
+        description: data.description,
+        state_id: data.state_id,
+        label_ids: data.label_ids
+      })
+    });
   }
 
   protected async updateIssueInApi(workspaceId: string, projectId: string, issueId: string, data: UpdatePlaneIssueData): Promise<PlaneIssue> {
-    throw new Error('Not implemented');
+    const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/issues/${issueId}/`;
+    return this.fetchApi(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: data.name || data.title,
+        description: data.description,
+        state_id: data.state_id,
+        label_ids: data.label_ids
+      })
+    });
   }
 
   protected async deleteIssueFromApi(workspaceId: string, projectId: string, issueId: string): Promise<void> {
-    throw new Error('Not implemented');
+    const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/issues/${issueId}/`;
+    await this.fetchApi(endpoint, {
+      method: 'DELETE'
+    });
   }
 
   protected async getLabelsFromApi(workspaceId: string, projectId: string): Promise<PlaneLabel[]> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/labels/`;
-    const response = await this.fetchApi(endpoint);
-    return response;
+    return this.fetchApi(endpoint);
   }
 
   protected async getStatesFromApi(workspaceId: string, projectId: string): Promise<PlaneState[]> {
-    throw new Error('Not implemented');
+    const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/states/`;
+    return this.fetchApi(endpoint);
   }
 
   async createLabel(projectRef: string, data: CreateLabelData): Promise<BaseLabel> {
@@ -237,7 +280,7 @@ export class PlaneClient implements IssueTrackingClient {
 
   protected async createLabelInApi(workspaceId: string, projectId: string, data: CreateLabelData): Promise<PlaneLabel> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/labels/`;
-    const response = await this.fetchApi(endpoint, {
+    return this.fetchApi(endpoint, {
       method: 'POST',
       body: JSON.stringify({
         name: data.name,
@@ -245,12 +288,11 @@ export class PlaneClient implements IssueTrackingClient {
         description: data.description
       })
     });
-    return response;
   }
 
   protected async updateLabelInApi(workspaceId: string, projectId: string, labelId: string, data: Partial<CreateLabelData>): Promise<PlaneLabel> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/labels/${labelId}/`;
-    const response = await this.fetchApi(endpoint, {
+    return this.fetchApi(endpoint, {
       method: 'PATCH',
       body: JSON.stringify({
         name: data.name,
@@ -258,7 +300,6 @@ export class PlaneClient implements IssueTrackingClient {
         description: data.description
       })
     });
-    return response;
   }
 
   protected async deleteLabelInApi(workspaceId: string, projectId: string, labelId: string): Promise<void> {
@@ -279,8 +320,8 @@ export class PlaneClient implements IssueTrackingClient {
       }
     });
 
-    if (!response.ok) {
-      throw new Error(`Plane API error: ${response.status} ${response.statusText}`);
+    if (!response?.ok) {
+      throw new Error(`Plane API error: ${response?.status} ${response?.statusText}`);
     }
 
     return response.json();

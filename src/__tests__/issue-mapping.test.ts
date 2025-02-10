@@ -75,53 +75,113 @@ describe('Issue Mapping', () => {
       });
     });
 
-    test('should map closed GitHub issue to Done state', async () => {
-      const closedIssue: GitHubIssue = {
-        ...mockGitHubRawIssue,
-        state: 'closed'
-      };
-
-      const normalizedIssue = await githubNormalizer.normalize(closedIssue);
-      expect(normalizedIssue.state.category).toBe(NormalizedStateCategory.Done);
-    });
-
-    test('should handle GitHub issue without optional fields', async () => {
+    test('should handle GitHub issue with missing optional fields', async () => {
       const minimalIssue: GitHubIssue = {
         number: 123,
         title: 'Test Issue',
         state: 'open',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-02T00:00:00Z',
         labels: [],
         assignees: [],
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-02T00:00:00Z',
         node_id: 'MDU6SXNzdWUx',
-        body: ''
+        body: undefined
       };
 
       const normalizedIssue = await githubNormalizer.normalize(minimalIssue);
-      expect(normalizedIssue).toMatchObject({
-        description: '',
-        labels: [],
-        assignees: []
-      });
+      expect(normalizedIssue.description).toBe('');
+      expect(normalizedIssue.labels).toEqual([]);
+      expect(normalizedIssue.assignees).toEqual([]);
     });
 
-    test('should handle label color normalization', async () => {
-      const githubIssue: GitHubIssue = {
+    test('should handle various GitHub state mappings', async () => {
+      const testCases = [
+        { state: 'open', expectedCategory: NormalizedStateCategory.Todo },
+        { state: 'closed', expectedCategory: NormalizedStateCategory.Done }
+      ];
+
+      for (const { state, expectedCategory } of testCases) {
+        const issue: GitHubIssue = {
+          ...mockGitHubRawIssue,
+          state: state as 'open' | 'closed'
+        };
+
+        const normalizedIssue = await githubNormalizer.normalize(issue);
+        expect(normalizedIssue.state.category).toBe(expectedCategory);
+      }
+    });
+
+    test('should handle GitHub label color variations', async () => {
+      const issue: GitHubIssue = {
         ...mockGitHubRawIssue,
         labels: [
-          { name: 'test', color: 'abc' }, // Short color code
-          { name: 'test2', color: undefined }, // No color
-          { name: 'test3', color: 'ff0000' } // Full color code
+          { name: 'test1', color: 'abc', description: undefined }, // Short color
+          { name: 'test2', color: undefined, description: undefined }, // No color
+          { name: 'test3', color: 'ff0000', description: undefined } // Full color
         ]
       };
 
-      const normalizedIssue = await githubNormalizer.normalize(githubIssue);
+      const normalizedIssue = await githubNormalizer.normalize(issue);
       expect(normalizedIssue.labels).toEqual([
-        { name: 'test', color: '#abc', description: undefined },
-        { name: 'test2', color: undefined, description: undefined },
-        { name: 'test3', color: '#ff0000', description: undefined }
+        { name: 'test1', color: '#abc' },
+        { name: 'test2' },
+        { name: 'test3', color: '#ff0000' }
       ]);
+    });
+
+    test('should correctly denormalize issue for GitHub', async () => {
+      const normalizedIssue: NormalizedIssue = {
+        id: '123',
+        title: 'Test Issue',
+        description: 'Test Description',
+        state: {
+          category: NormalizedStateCategory.Done,
+          name: 'Done'
+        },
+        labels: [
+          { name: 'bug', color: '#ff0000', description: 'Bug label' },
+          { name: 'feature', color: '#00ff00' }
+        ],
+        assignees: ['user1', 'user2'],
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-02T00:00:00Z',
+        sourceProvider: 'github'
+      };
+
+      const githubIssue = await githubNormalizer.denormalize(normalizedIssue);
+      expect(githubIssue).toEqual({
+        title: 'Test Issue',
+        body: 'Test Description',
+        state: 'closed',
+        labels: ['bug', 'feature'],
+        assignees: ['user1', 'user2']
+      });
+    });
+
+    test('should handle denormalization with minimal fields', async () => {
+      const minimalNormalizedIssue: NormalizedIssue = {
+        id: '123',
+        title: 'Test Issue',
+        description: '',
+        state: {
+          category: NormalizedStateCategory.Todo,
+          name: 'Todo'
+        },
+        labels: [],
+        assignees: [],
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-02T00:00:00Z',
+        sourceProvider: 'github'
+      };
+
+      const githubIssue = await githubNormalizer.denormalize(minimalNormalizedIssue);
+      expect(githubIssue).toEqual({
+        title: 'Test Issue',
+        body: '',
+        state: 'open',
+        labels: [],
+        assignees: []
+      });
     });
   });
 
