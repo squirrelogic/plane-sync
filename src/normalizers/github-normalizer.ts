@@ -25,9 +25,10 @@ export interface CreateGitHubIssue {
   body?: string;
   state?: 'open' | 'closed';
   labels?: string[];
+  assignees?: string[];
 }
 
-export class GitHubNormalizer implements IssueNormalizer<GitHubIssue, BaseIssue> {
+export class GitHubNormalizer implements IssueNormalizer<GitHubIssue, CreateGitHubIssue> {
   async normalize(issue: GitHubIssue): Promise<NormalizedIssue> {
     return {
       id: issue.number.toString(),
@@ -46,7 +47,6 @@ export class GitHubNormalizer implements IssueNormalizer<GitHubIssue, BaseIssue>
       createdAt: issue.created_at,
       updatedAt: issue.updated_at,
       metadata: {
-        provider: 'github',
         externalId: issue.number.toString(),
         nodeId: issue.node_id,
       },
@@ -54,40 +54,24 @@ export class GitHubNormalizer implements IssueNormalizer<GitHubIssue, BaseIssue>
     };
   }
 
-  async denormalize(issue: NormalizedIssue): Promise<BaseIssue> {
+  async denormalize(issue: NormalizedIssue): Promise<CreateGitHubIssue> {
     return {
-      id: issue.id,
       title: issue.title,
-      description: issue.description,
-      state: {
-        id: issue.state.name.toLowerCase(),
-        name: issue.state.name,
-      },
-      labels: issue.labels.map(
-        (label): BaseLabel => ({
-          id: label.name,
-          name: label.name,
-          color: label.color?.replace('#', ''),
-          description: label.description,
-        })
-      ),
-      createdAt: issue.createdAt,
-      updatedAt: issue.updatedAt,
-      metadata: {
-        ...issue.metadata,
-        provider: 'github',
-      },
+      body: issue.description,
+      state: issue.state.category === NormalizedStateCategory.Done ? 'closed' : 'open',
+      labels: issue.labels.map((label) => label.name),
+      assignees: issue.assignees,
     };
   }
 
   private getCategoryFromState(state: string): NormalizedStateCategory {
     switch (state.toLowerCase()) {
       case 'open':
-        return NormalizedStateCategory.Backlog;
+        return NormalizedStateCategory.Todo;
       case 'closed':
         return NormalizedStateCategory.Done;
       default:
-        return NormalizedStateCategory.Backlog;
+        return NormalizedStateCategory.Todo;
     }
   }
 }

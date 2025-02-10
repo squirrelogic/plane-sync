@@ -16,49 +16,167 @@ export class SyncService {
   ) {}
 
   async sync(): Promise<SyncResult> {
-    const sourceIssues = await this.sourceProvider.getIssues();
-    const targetIssues = await this.targetProvider.getIssues();
+    let sourceIssues: NormalizedIssue[];
+    let targetIssues: NormalizedIssue[];
 
-    // Create maps for faster lookups
-    const sourceMap = new Map(sourceIssues.map((issue: NormalizedIssue) => [issue.id, issue]));
-    const targetMap = new Map(targetIssues.map((issue: NormalizedIssue) => [issue.id, issue]));
+    try {
+      sourceIssues = await this.sourceProvider.getIssues();
+    } catch (error) {
+      if (error instanceof Error && error.message === 'API rate limit exceeded') {
+        // Wait and retry once for rate limit errors
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        sourceIssues = await this.sourceProvider.getIssues();
+      } else {
+        throw error;
+      }
+    }
 
-    const sourceToTargetChanges: IssueChange[] = sourceIssues.map((issue) => ({
-      source: this.sourceProvider.getName(),
-      issue,
-    }));
+    try {
+      targetIssues = await this.targetProvider.getIssues();
+    } catch (error) {
+      if (error instanceof Error && error.message === 'API rate limit exceeded') {
+        // Wait and retry once for rate limit errors
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        targetIssues = await this.targetProvider.getIssues();
+      } else {
+        throw error;
+      }
+    }
 
-    const targetToSourceChanges: IssueChange[] = targetIssues.map((issue) => ({
-      source: this.targetProvider.getName(),
-      issue,
-    }));
+    const changes: IssueChange[] = [];
+    const conflicts: IssueConflict[] = [];
+    const errors: Error[] = [];
 
-    const conflicts: IssueConflict[] = sourceIssues
-      .map((sourceIssue) => {
-        const targetIssue = targetMap.get(sourceIssue.id);
-        if (!targetIssue) return null;
+    // Process source to target sync
+    for (const sourceIssue of sourceIssues) {
+      try {
+        const matchingTargetIssue = targetIssues.find(
+          (target) =>
+            target.metadata?.externalId === sourceIssue.id ||
+            (target.title === sourceIssue.title &&
+              target.description === sourceIssue.description) ||
+            (target.metadata?.provider === this.sourceProvider.getName() &&
+              target.metadata?.externalId === sourceIssue.id)
+        );
 
-        const conflictingFields = this.getConflictingFields(sourceIssue, targetIssue);
-        if (conflictingFields.length === 0) return null;
+        if (matchingTargetIssue) {
+          const sourceDate = new Date(sourceIssue.updatedAt);
+          const targetDate = new Date(matchingTargetIssue.updatedAt);
 
-        return {
-          sourceIssue,
-          targetIssue,
-          lastSyncHash: '',
-          conflictingFields: conflictingFields.map((field) => ({
-            field,
-            sourceValue: sourceIssue[field as keyof NormalizedIssue],
-            targetValue: targetIssue[field as keyof NormalizedIssue],
-          })),
-        };
-      })
-      .filter((conflict): conflict is NonNullable<typeof conflict> => conflict !== null);
+          // Check for conflicts when timestamps match
+          if (sourceDate.getTime() === targetDate.getTime()) {
+            const conflictingFields = this.getConflictingFields(sourceIssue, matchingTargetIssue);
+            if (conflictingFields.length > 0) {
+              conflicts.push({
+                sourceIssue,
+                targetIssue: matchingTargetIssue,
+                lastSyncHash: '',
+                conflictingFields: conflictingFields.map((field) => ({
+                  field,
+                  sourceValue: sourceIssue[field as keyof NormalizedIssue],
+                  targetValue: matchingTargetIssue[field as keyof NormalizedIssue],
+                })),
+              });
+              continue;
+            }
+          }
+
+          // Update if source is newer
+          if (sourceDate > targetDate) {
+            const updateData: Partial<NormalizedIssue> = {
+              title: sourceIssue.title,
+              description: sourceIssue.description,
+              state: sourceIssue.state,
+              labels: sourceIssue.labels,
+              assignees: sourceIssue.assignees,
+            };
+
+            // Only include metadata if it's a new link
+            if (!matchingTargetIssue.metadata?.externalId) {
+              updateData.metadata = {
+                externalId: sourceIssue.id,
+                provider: this.sourceProvider.getName(),
+              };
+            }
+
+            await this.targetProvider.updateIssue(matchingTargetIssue.id, updateData);
+            changes.push({ source: this.sourceProvider.getName(), issue: sourceIssue });
+          }
+        } else {
+          // Create new issue
+          const createdIssue = await this.targetProvider.createIssue({
+            title: sourceIssue.title,
+            description: sourceIssue.description,
+            state: sourceIssue.state,
+            labels: sourceIssue.labels,
+            assignees: sourceIssue.assignees,
+            metadata: {
+              externalId: sourceIssue.id,
+              provider: this.sourceProvider.getName(),
+            },
+          });
+          changes.push({ source: this.sourceProvider.getName(), issue: createdIssue });
+        }
+      } catch (error) {
+        errors.push(error as Error);
+      }
+    }
+
+    // Process target to source sync
+    for (const targetIssue of targetIssues) {
+      try {
+        if (targetIssue.metadata?.provider === this.sourceProvider.getName()) {
+          const sourceIssueExists = sourceIssues.some(
+            (source) => source.id === targetIssue.metadata?.externalId
+          );
+
+          if (!sourceIssueExists) {
+            // Source issue was deleted, mark target as cancelled
+            await this.targetProvider.updateIssue(targetIssue.id, {
+              state: {
+                category: NormalizedStateCategory.Done,
+                name: 'Cancelled',
+              },
+            });
+            changes.push({ source: this.targetProvider.getName(), issue: targetIssue });
+          }
+        } else {
+          // Create in source if no reference exists
+          const createdIssue = await this.sourceProvider.createIssue({
+            title: targetIssue.title,
+            description: targetIssue.description,
+            state: targetIssue.state,
+            labels: targetIssue.labels,
+            assignees: targetIssue.assignees,
+            metadata: {
+              externalId: targetIssue.id,
+              provider: this.targetProvider.getName(),
+            },
+          });
+          changes.push({ source: this.sourceProvider.getName(), issue: createdIssue });
+
+          // Update target with source reference
+          await this.targetProvider.updateIssue(targetIssue.id, {
+            metadata: {
+              externalId: createdIssue.id,
+              provider: this.sourceProvider.getName(),
+            },
+          });
+        }
+      } catch (error) {
+        errors.push(error as Error);
+      }
+    }
 
     return {
-      sourceToTargetChanges,
-      targetToSourceChanges,
+      sourceToTargetChanges: changes.filter(
+        (change) => change.source === this.sourceProvider.getName()
+      ),
+      targetToSourceChanges: changes.filter(
+        (change) => change.source === this.targetProvider.getName()
+      ),
       conflicts,
-      errors: [],
+      errors,
     };
   }
 
