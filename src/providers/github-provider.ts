@@ -96,6 +96,7 @@ export class GitHubProvider extends BaseProvider implements RepoProvider {
   }
 
   async getStates(): Promise<NormalizedState[]> {
+    const states = await this.client.getStates(this.projectRef);
     return [
       {
         category: NormalizedStateCategory.Todo,

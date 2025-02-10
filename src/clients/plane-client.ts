@@ -72,6 +72,26 @@ export interface UpdatePlaneIssueData {
   assignee_ids?: string[];
 }
 
+export interface PlaneIssueProperty {
+  id: string;
+  name: string;
+  display_name: string;
+  description?: string;
+  property_type: string;
+  default_value: any;
+  values?: PlaneIssuePropertyValue[];
+}
+
+export interface PlaneIssuePropertyValue {
+  id: string;
+  name: string;
+  description?: string;
+  sort_order: number;
+  is_active: boolean;
+  is_default: boolean;
+  external_id?: string;
+}
+
 export class PlaneClient implements IssueTrackingClient {
   constructor(
     private baseUrl: string,
@@ -181,7 +201,8 @@ export class PlaneClient implements IssueTrackingClient {
       label_ids: Array.isArray(data.labels)
         ? data.labels.map(label => typeof label === 'string' ? label : label.id)
         : undefined,
-      assignee_ids: []
+      assignee_ids: [],
+      metadata: data.metadata
     });
     return this.mapPlaneIssueToBase(issue);
   }
@@ -232,7 +253,9 @@ export class PlaneClient implements IssueTrackingClient {
         name: data.name || data.title,
         description: data.description,
         state_id: data.state_id,
-        label_ids: data.label_ids
+        label_ids: data.label_ids,
+        assignee_ids: data.assignee_ids,
+        metadata: data.metadata
       })
     });
   }
@@ -245,7 +268,9 @@ export class PlaneClient implements IssueTrackingClient {
         name: data.name || data.title,
         description: data.description,
         state_id: data.state_id,
-        label_ids: data.label_ids
+        label_ids: data.label_ids,
+        assignee_ids: data.assignee_ids,
+        metadata: data.metadata
       })
     });
   }
@@ -270,6 +295,17 @@ export class PlaneClient implements IssueTrackingClient {
   async createLabel(projectRef: string, data: CreateLabelData): Promise<BaseLabel> {
     const { workspaceId, projectId } = this.parseProjectRef(projectRef);
     const label = await this.createLabelInApi(workspaceId, projectId, data);
+    return {
+      id: label.id,
+      name: label.name,
+      color: label.color,
+      description: label.description
+    };
+  }
+
+  async updateLabel(projectRef: string, labelId: string, data: Partial<CreateLabelData>): Promise<BaseLabel> {
+    const { workspaceId, projectId } = this.parseProjectRef(projectRef);
+    const label = await this.updateLabelInApi(workspaceId, projectId, labelId, data);
     return {
       id: label.id,
       name: label.name,
@@ -307,6 +343,16 @@ export class PlaneClient implements IssueTrackingClient {
     await this.fetchApi(endpoint, {
       method: 'DELETE'
     });
+  }
+
+  async getProperties(projectRef: string): Promise<PlaneIssueProperty[]> {
+    const { workspaceId, projectId } = this.parseProjectRef(projectRef);
+    return this.getPropertiesFromApi(workspaceId, projectId);
+  }
+
+  protected async getPropertiesFromApi(workspaceId: string, projectId: string): Promise<PlaneIssueProperty[]> {
+    const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/properties/`;
+    return this.fetchApi(endpoint);
   }
 
   private async fetchApi(endpoint: string, options: RequestInit = {}): Promise<any> {

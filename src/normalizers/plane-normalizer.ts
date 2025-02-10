@@ -1,11 +1,11 @@
 import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized';
 import { IssueNormalizer } from './issue-normalizer';
-import { PlaneClient, PlaneIssue, CreatePlaneIssueData } from '../clients/plane-client';
-import { BaseLabel } from '../clients/base-client';
+import { PlaneClient, PlaneIssue, PlaneState, PlaneLabel } from '../clients/plane-client';
+import { BaseIssue } from '../clients/base-client';
 
-export class PlaneNormalizer implements IssueNormalizer<PlaneIssue, CreatePlaneIssueData> {
-  private stateCache: Map<string, { id: string; name: string; category: NormalizedStateCategory }> = new Map();
-  private labelCache: Map<string, BaseLabel> = new Map();
+export class PlaneNormalizer implements IssueNormalizer<PlaneIssue, BaseIssue> {
+  private stateCache: Map<string, PlaneState> = new Map();
+  private labelCache: Map<string, PlaneLabel> = new Map();
 
   constructor(
     private client: PlaneClient,
@@ -13,29 +13,19 @@ export class PlaneNormalizer implements IssueNormalizer<PlaneIssue, CreatePlaneI
     private projectId: string
   ) {}
 
-  private get projectRef(): string {
-    return `${this.workspaceId}/${this.projectId}`;
-  }
-
   async initialize(): Promise<void> {
-    // Load states and labels into cache
-    const [states, labels] = await Promise.all([
-      this.client.getStates(this.projectRef),
-      this.client.getLabels(this.projectRef)
-    ]);
-
-    // Cache states
+    const states = await this.client.getStates(`${this.workspaceId}/${this.projectId}`);
     states.forEach(state => {
-      this.stateCache.set(state.id, {
-        id: state.id,
-        name: state.name,
-        category: this.getCategoryFromName(state.name)
-      });
+      this.stateCache.set(state.id, state);
     });
 
-    // Cache labels
+    // Clear and repopulate the label cache
+    this.labelCache.clear();
+    const labels = await this.client.getLabels(`${this.workspaceId}/${this.projectId}`);
     labels.forEach(label => {
-      this.labelCache.set(label.name, label);
+      this.labelCache.set(label.id, label);
+      // Also cache by name for faster lookups
+      this.labelCache.set(label.name.toLowerCase(), label);
     });
   }
 
@@ -50,44 +40,26 @@ export class PlaneNormalizer implements IssueNormalizer<PlaneIssue, CreatePlaneI
   }
 
   async normalize(issue: PlaneIssue): Promise<NormalizedIssue> {
-    // Ensure cache is initialized
-    if (this.stateCache.size === 0) {
-      await this.initialize();
-    }
-
-    const stateInfo = this.stateCache.get(issue.state.id) || {
-      id: issue.state.id,
-      name: issue.state.name,
-      category: this.getCategoryFromName(issue.state.name)
-    };
-
-    // Handle labels - create them if they don't exist
-    const normalizedLabels = await Promise.all(issue.labels.map(async label => {
-      let existingLabel = this.labelCache.get(label.name);
-      if (!existingLabel) {
-        // Create new label if it doesn't exist
-        existingLabel = await this.client.createLabel(this.projectRef, {
-          name: label.name,
-          color: label.color || '#000000',
-          description: label.description
-        });
-        this.labelCache.set(label.name, existingLabel);
-      }
+    // Create any new labels that don't exist
+    const labelPromises = issue.labels.map(async label => {
+      const labelId = await this.getLabelIdFromName(label.name, label.color, label.description);
       return {
         name: label.name,
         color: label.color,
         description: label.description,
-        metadata: { id: existingLabel.id }
+        metadata: { id: labelId }
       };
-    }));
+    });
+
+    const normalizedLabels = await Promise.all(labelPromises);
 
     return {
       id: issue.id,
       title: issue.name,
       description: issue.description || '',
       state: {
-        category: stateInfo.category,
-        name: stateInfo.name,
+        category: this.getCategoryFromName(issue.state.name),
+        name: issue.state.name,
         color: issue.state.color,
         metadata: { id: issue.state.id }
       },
@@ -96,58 +68,99 @@ export class PlaneNormalizer implements IssueNormalizer<PlaneIssue, CreatePlaneI
       createdAt: issue.created_at,
       updatedAt: issue.updated_at,
       metadata: {
-        stateId: issue.state.id,
-        ...issue.metadata
+        ...issue.metadata,
+        stateId: issue.state.id
       },
       sourceProvider: 'plane'
     };
   }
 
-  async denormalize(issue: NormalizedIssue): Promise<CreatePlaneIssueData> {
-    // Ensure cache is initialized
-    if (this.stateCache.size === 0) {
-      await this.initialize();
-    }
+  async denormalize(issue: NormalizedIssue): Promise<BaseIssue> {
+    const stateId = issue.state.metadata?.id || await this.getStateIdFromName(issue.state.name);
 
-    // Find matching state ID
-    let stateId = '';
-    for (const [id, state] of this.stateCache.entries()) {
-      if (state.category === issue.state.category) {
-        stateId = id;
-        break;
+    // Refresh label cache if empty
+    if (this.labelCache.size === 0) {
+      const labels = await this.client.getLabels(`${this.workspaceId}/${this.projectId}`);
+      for (const label of labels) {
+        this.labelCache.set(label.id, label);
       }
     }
 
-    // Handle labels
-    const labelIds: string[] = [];
-    for (const label of issue.labels) {
-      let existingLabel = this.labelCache.get(label.name);
-      if (!existingLabel) {
-        // Create new label if it doesn't exist
-        existingLabel = await this.client.createLabel(this.projectRef, {
-          name: label.name,
-          color: label.color || '#000000',
-          description: label.description
-        });
-        this.labelCache.set(label.name, existingLabel);
-      }
-      labelIds.push(existingLabel.id);
-    }
+    const labelPromises = issue.labels.map(async label => {
+      const labelId = await this.getLabelIdFromName(label.name, label.color, label.description);
+      return {
+        id: labelId,
+        name: label.name,
+        color: label.color,
+        description: label.description
+      };
+    });
+
+    const labels = await Promise.all(labelPromises);
 
     return {
+      id: issue.id,
       title: issue.title,
-      name: issue.title,
       description: issue.description,
-      state: stateId,
-      state_id: stateId,
-      labels: labelIds,
-      label_ids: labelIds,
-      assignee_ids: issue.assignees,
+      state: {
+        id: stateId,
+        name: issue.state.name,
+        color: issue.state.color
+      },
+      labels,
+      createdAt: issue.createdAt,
+      updatedAt: issue.updatedAt,
       metadata: {
-        externalId: issue.id,
-        provider: issue.sourceProvider,
-        ...issue.metadata
+        ...issue.metadata,
+        stateId,
+        assigneeIds: issue.assignees
       }
     };
+  }
+
+  private async getStateIdFromName(name: string): Promise<string> {
+    const states = await this.client.getStates(`${this.workspaceId}/${this.projectId}`);
+    const state = states.find(s => s.name.toLowerCase() === name.toLowerCase());
+    if (!state) {
+      throw new Error(`State not found: ${name}`);
+    }
+    return state.id;
+  }
+
+  private async getLabelIdFromName(name: string, color?: string, description?: string): Promise<string> {
+    if (!name) {
+      throw new Error('Label name is required');
+    }
+
+    // First check the cache by name
+    const cachedLabel = this.labelCache.get(name.toLowerCase());
+    if (cachedLabel) {
+      return cachedLabel.id;
+    }
+
+    // If not in cache, try to find in all labels
+    const labels = await this.client.getLabels(`${this.workspaceId}/${this.projectId}`);
+    for (const label of labels) {
+      this.labelCache.set(label.id, label);
+      this.labelCache.set(label.name.toLowerCase(), label);
+    }
+
+    const existingLabel = labels.find(l => l && l.name && l.name.toLowerCase() === name.toLowerCase());
+    if (existingLabel) {
+      return existingLabel.id;
+    }
+
+    // If label doesn't exist, create it
+    const newLabel = await this.client.createLabel(
+      `${this.workspaceId}/${this.projectId}`,
+      {
+        name,
+        color: color || '#000000', // Use provided color or default
+        description
+      }
+    );
+    this.labelCache.set(newLabel.id, newLabel);
+    this.labelCache.set(newLabel.name.toLowerCase(), newLabel);
+    return newLabel.id;
   }
 }

@@ -19,6 +19,7 @@ export class PlaneProvider extends BaseProvider implements RepoProvider {
     defaultCategory: NormalizedStateCategory.Backlog
   };
   public readonly normalizer: PlaneNormalizer;
+  private propertyCache: Map<string, { id: string; name: string }> = new Map();
 
   constructor(
     private client: PlaneClient,
@@ -27,10 +28,53 @@ export class PlaneProvider extends BaseProvider implements RepoProvider {
   ) {
     super();
     this.normalizer = new PlaneNormalizer(client, workspaceId, projectId);
+    this.initializePropertyCache();
   }
 
   private get projectRef(): string {
     return `${this.workspaceId}/${this.projectId}`;
+  }
+
+  private async initializePropertyCache(): Promise<void> {
+    const properties = await this.client.getProperties(this.projectRef);
+    if (properties) {
+      properties.forEach(prop => {
+        this.propertyCache.set(prop.name, { id: prop.id, name: prop.name });
+      });
+    }
+  }
+
+  private async getStateIdFromName(name: string): Promise<string> {
+    const states = await this.client.getStates(this.projectRef);
+    const state = states.find(s => s.name.toLowerCase() === name.toLowerCase());
+    if (!state) {
+      throw new Error(`State not found: ${name}`);
+    }
+    return state.id;
+  }
+
+  private async getLabelIdFromName(name: string): Promise<string> {
+    const labels = await this.client.getLabels(this.projectRef);
+    const label = labels.find(l => l.name.toLowerCase() === name.toLowerCase());
+    if (!label) {
+      throw new Error(`Label not found: ${name}`);
+    }
+    return label.id;
+  }
+
+  private async getPropertyIdFromName(name: string): Promise<string> {
+    const cached = this.propertyCache.get(name);
+    if (cached) {
+      return cached.id;
+    }
+
+    // If not in cache, refresh the cache and try again
+    await this.initializePropertyCache();
+    const refreshed = this.propertyCache.get(name);
+    if (!refreshed) {
+      throw new Error(`Property not found: ${name}`);
+    }
+    return refreshed.id;
   }
 
   private convertBaseToPlaneIssue(baseIssue: BaseIssue): PlaneIssue {
@@ -59,48 +103,81 @@ export class PlaneProvider extends BaseProvider implements RepoProvider {
 
   async getIssues(): Promise<NormalizedIssue[]> {
     const issues = await this.client.listIssues(this.projectRef);
-    return Promise.all(issues.map(issue => this.normalizer.normalize(this.convertBaseToPlaneIssue(issue))));
+    const planeIssues = issues.map(issue => ({
+      ...this.convertBaseToPlaneIssue(issue),
+      name: issue.title,
+      assignee_ids: issue.metadata?.assigneeIds || [],
+      created_at: issue.createdAt,
+      updated_at: issue.updatedAt
+    }));
+    return Promise.all(planeIssues.map(issue => this.normalizer.normalize(issue)));
   }
 
   async getIssue(id: string): Promise<NormalizedIssue> {
     const issue = await this.client.getIssue(this.projectRef, id);
-    return this.normalizer.normalize(this.convertBaseToPlaneIssue(issue));
+    const planeIssue = {
+      ...this.convertBaseToPlaneIssue(issue),
+      name: issue.title,
+      assignee_ids: issue.metadata?.assigneeIds || [],
+      created_at: issue.createdAt,
+      updated_at: issue.updatedAt
+    };
+    return this.normalizer.normalize(planeIssue);
   }
 
   async createIssue(issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>): Promise<NormalizedIssue> {
-    const planeIssue: CreatePlaneIssueData = {
+    const stateId = issue.state.metadata?.id || await this.getStateIdFromName(issue.state.name);
+    const labelIds = await Promise.all(issue.labels.map(label => label.metadata?.id || this.getLabelIdFromName(label.name)));
+
+    const data: CreatePlaneIssueData = {
       title: issue.title,
       name: issue.title,
       description: issue.description,
-      state: issue.state.metadata?.id || '',
-      state_id: issue.state.metadata?.id || '',
-      labels: issue.labels?.map(l => l.metadata?.id || '') || [],
-      label_ids: issue.labels?.map(l => l.metadata?.id || '') || [],
-      assignee_ids: issue.assignees,
+      state: stateId,
+      state_id: stateId,
+      label_ids: labelIds,
+      labels: labelIds,
+      assignee_ids: issue.assignees || [],
       metadata: {
         externalId: issue.metadata?.externalId,
         provider: issue.metadata?.provider
       }
     };
 
-    const createdIssue = await this.client.createIssue(this.projectRef, planeIssue);
-    return this.normalizer.normalize(this.convertBaseToPlaneIssue(createdIssue));
+    const planeIssue = await this.client.createIssue(this.projectRef, data);
+    return this.normalizer.normalize({
+      ...planeIssue,
+      name: planeIssue.title,
+      assignee_ids: planeIssue.metadata?.assigneeIds || [],
+      created_at: planeIssue.createdAt,
+      updated_at: planeIssue.updatedAt
+    });
   }
 
   async updateIssue(id: string, issue: Partial<NormalizedIssue>): Promise<NormalizedIssue> {
-    const planeIssue: UpdatePlaneIssueData = {
+    const stateId = issue.state?.metadata?.id || (issue.state?.name ? await this.getStateIdFromName(issue.state.name) : undefined);
+    const labelIds = issue.labels ? await Promise.all(issue.labels.map(label => label.metadata?.id || this.getLabelIdFromName(label.name))) : [];
+
+    const data: UpdatePlaneIssueData = {
       title: issue.title,
       name: issue.title,
       description: issue.description,
-      state: issue.state?.metadata?.id || '',
-      state_id: issue.state?.metadata?.id || '',
-      labels: issue.labels?.map(l => l.metadata?.id || '') || [],
-      label_ids: issue.labels?.map(l => l.metadata?.id || '') || [],
-      assignee_ids: issue.assignees
+      state: stateId,
+      state_id: stateId,
+      label_ids: labelIds,
+      labels: labelIds,
+      assignee_ids: issue.assignees,
+      metadata: issue.metadata
     };
 
-    const updatedIssue = await this.client.updateIssue(this.projectRef, id, planeIssue);
-    return this.normalizer.normalize(this.convertBaseToPlaneIssue(updatedIssue));
+    const planeIssue = await this.client.updateIssue(this.projectRef, id, data);
+    return this.normalizer.normalize({
+      ...planeIssue,
+      name: planeIssue.title,
+      assignee_ids: planeIssue.metadata?.assigneeIds || [],
+      created_at: planeIssue.createdAt,
+      updated_at: planeIssue.updatedAt
+    });
   }
 
   async deleteIssue(id: string): Promise<void> {

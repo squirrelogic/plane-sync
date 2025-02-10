@@ -37,7 +37,7 @@ export class GitHubNormalizer implements IssueNormalizer<GitHubIssue, CreateGitH
       description: issue.body || '',
       state: {
         category: issue.state === 'closed' ? NormalizedStateCategory.Done : NormalizedStateCategory.Todo,
-        name: issue.state === 'closed' ? 'Done' : 'Todo'
+        name: issue.state === 'closed' ? 'Closed' : 'Open'
       },
       labels: issue.labels.map(label => ({
         name: label.name,
@@ -49,6 +49,7 @@ export class GitHubNormalizer implements IssueNormalizer<GitHubIssue, CreateGitH
       updatedAt: issue.updated_at,
       sourceProvider: 'github',
       metadata: {
+        externalId: issue.number.toString(),
         nodeId: issue.node_id,
         ...(issue.metadata || {})
       }

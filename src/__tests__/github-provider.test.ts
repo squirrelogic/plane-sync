@@ -64,21 +64,24 @@ describe('GitHubProvider', () => {
         title: 'Test Issue',
         description: 'Test Description',
         state: {
-          category: NormalizedStateCategory.Todo,
+          category: 'todo',
           name: 'Open'
         },
-        labels: [{
-          name: 'bug',
-          color: '#ff0000',
-          description: 'Bug label'
-        }],
-        assignees: [],
+        labels: [
+          {
+            name: 'bug',
+            description: 'Bug label',
+            color: '#ff0000'
+          }
+        ],
+        metadata: {
+          externalId: '123',
+          nodeId: ''
+        },
+        sourceProvider: 'github',
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
-        sourceProvider: 'github',
-        metadata: {
-          externalId: '123'
-        }
+        assignees: []
       });
     });
   });
@@ -105,7 +108,8 @@ describe('GitHubProvider', () => {
         updatedAt: '2024-01-02T00:00:00Z',
         sourceProvider: 'github',
         metadata: {
-          externalId: '123'
+          externalId: '123',
+          nodeId: ''
         }
       });
     });

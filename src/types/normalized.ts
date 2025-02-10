@@ -42,8 +42,15 @@ export interface NormalizedIssue {
   assignees: string[];
   createdAt: string;
   updatedAt: string;
-  metadata?: Record<string, any>;
+  metadata?: {
+    externalId?: string;
+    nodeId?: string;
+    stateId?: string;
+    provider?: string;
+    [key: string]: any;
+  };
   sourceProvider: string;  // Name of the provider this issue came from
+  properties?: Record<string, any>;
 }
 
 /**

@@ -11,6 +11,7 @@ export interface BaseIssue {
     provider?: string;
     [key: string]: any;
   };
+  properties?: Record<string, any>;
 }
 
 export interface BaseState {
@@ -44,6 +45,7 @@ export interface CreateIssueData {
     provider?: string;
     [key: string]: any;
   };
+  properties?: Record<string, any>;
 }
 
 export interface UpdateIssueData {
@@ -51,6 +53,12 @@ export interface UpdateIssueData {
   description?: string;
   state?: string | BaseState;
   labels?: string[] | BaseLabel[];
+  metadata?: {
+    externalId?: string;
+    provider?: string;
+    [key: string]: any;
+  };
+  properties?: Record<string, any>;
 }
 
 export interface IssueTrackingClient {
