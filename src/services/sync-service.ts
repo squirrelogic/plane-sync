@@ -1,11 +1,4 @@
-import {
-  Issue,
-  IssueState,
-  SyncResult,
-  Label,
-  IssueChange,
-  IssueConflict,
-} from '../types/index.js';
+import { IssueChange, IssueConflict, SyncResult } from '../types/index.js';
 import { RepoProvider } from '../providers/repo-provider.js';
 import { NormalizedIssue, NormalizedStateCategory, NormalizedLabel } from '../types/normalized.js';
 

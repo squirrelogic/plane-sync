@@ -69,59 +69,41 @@ export class GitHubClient implements IssueTrackingClient {
 
   public async listIssues(projectRef: string): Promise<BaseIssue[]> {
     const { owner, repo } = this.validateProjectRef(projectRef);
-    try {
-      const { data: issues } = await this.octokit.rest.issues.listForRepo({
-        owner,
-        repo,
-        state: 'all',
-      });
+    const { data: issues } = await this.octokit.rest.issues.listForRepo({
+      owner,
+      repo,
+      state: 'all',
+      per_page: 100,
+    });
 
-      return issues
-        .filter((issue) => !issue.pull_request)
-        .map((issue) => this.mapGitHubIssueToBase(issue as GitHubIssue));
-    } catch (error) {
-      throw error;
-    }
+    return issues
+      .filter((issue) => !('pull_request' in issue))
+      .map((issue) => this.mapGitHubIssueToBase(issue as GitHubIssue));
   }
 
   public async getIssue(projectRef: string, issueId: string): Promise<BaseIssue> {
     const { owner, repo } = this.validateProjectRef(projectRef);
-    try {
-      const { data: issue } = await this.octokit.rest.issues.get({
-        owner,
-        repo,
-        issue_number: parseInt(issueId),
-      });
+    const { data: issue } = await this.octokit.rest.issues.get({
+      owner,
+      repo,
+      issue_number: parseInt(issueId),
+    });
 
-      return this.mapGitHubIssueToBase(issue as GitHubIssue);
-    } catch (error) {
-      throw error;
-    }
+    return this.mapGitHubIssueToBase(issue as GitHubIssue);
   }
 
   public async createIssue(projectRef: string, data: CreateIssueData): Promise<BaseIssue> {
     const { owner, repo } = this.validateProjectRef(projectRef);
-    try {
-      const { data: issue } = await this.octokit.rest.issues.create({
-        owner,
-        repo,
-        title: data.title,
-        body: data.description,
-        labels: Array.isArray(data.labels)
-          ? data.labels.map((label: string | BaseLabel) =>
-              typeof label === 'string' ? label : label.name
-            )
-          : undefined,
-        state: (typeof data.state === 'string' ? data.state : data.state?.id) as
-          | 'open'
-          | 'closed'
-          | undefined,
-      });
+    const { data: issue } = await this.octokit.rest.issues.create({
+      owner,
+      repo,
+      title: data.title,
+      body: data.description,
+      labels: data.labels?.map((label) => (typeof label === 'string' ? label : label.name)),
+      state: (typeof data.state === 'string' ? data.state : data.state?.id) as 'open' | 'closed',
+    });
 
-      return this.mapGitHubIssueToBase(issue as GitHubIssue);
-    } catch (error) {
-      throw error;
-    }
+    return this.mapGitHubIssueToBase(issue as GitHubIssue);
   }
 
   public async updateIssue(
@@ -130,54 +112,37 @@ export class GitHubClient implements IssueTrackingClient {
     data: UpdateIssueData
   ): Promise<BaseIssue> {
     const { owner, repo } = this.validateProjectRef(projectRef);
-    try {
-      const { data: issue } = await this.octokit.rest.issues.update({
-        owner,
-        repo,
-        issue_number: parseInt(issueId),
-        title: data.title,
-        body: data.description,
-        state: (typeof data.state === 'string' ? data.state : data.state?.id) as
-          | 'open'
-          | 'closed'
-          | undefined,
-        labels: Array.isArray(data.labels)
-          ? data.labels.map((label) => (typeof label === 'string' ? label : label.name))
-          : undefined,
-      });
+    const { data: issue } = await this.octokit.rest.issues.update({
+      owner,
+      repo,
+      issue_number: parseInt(issueId),
+      title: data.title,
+      body: data.description,
+      state: (typeof data.state === 'string' ? data.state : data.state?.id) as 'open' | 'closed',
+      labels: data.labels?.map((label) => (typeof label === 'string' ? label : label.name)),
+    });
 
-      return this.mapGitHubIssueToBase(issue as GitHubIssue);
-    } catch (error) {
-      throw error;
-    }
+    return this.mapGitHubIssueToBase(issue as GitHubIssue);
   }
 
   public async deleteIssue(projectRef: string, issueId: string): Promise<void> {
     const { owner, repo } = this.validateProjectRef(projectRef);
-    try {
-      await this.octokit.rest.issues.update({
-        owner,
-        repo,
-        issue_number: parseInt(issueId),
-        state: 'closed',
-      });
-    } catch (error) {
-      throw error;
-    }
+    await this.octokit.rest.issues.update({
+      owner,
+      repo,
+      issue_number: parseInt(issueId),
+      state: 'closed',
+    });
   }
 
   public async getLabels(projectRef: string): Promise<BaseLabel[]> {
     const { owner, repo } = this.validateProjectRef(projectRef);
-    try {
-      const { data: labels } = await this.octokit.rest.issues.listLabelsForRepo({
-        owner,
-        repo,
-      });
+    const { data: labels } = await this.octokit.rest.issues.listLabelsForRepo({
+      owner,
+      repo,
+    });
 
-      return labels.map((label) => this.mapGitHubLabelToBase(label));
-    } catch (error) {
-      throw error;
-    }
+    return labels.map((label) => this.mapGitHubLabelToBase(label));
   }
 
   public async getStates(projectRef: string): Promise<BaseState[]> {
@@ -189,18 +154,14 @@ export class GitHubClient implements IssueTrackingClient {
 
   public async createLabel(projectRef: string, data: CreateLabelData): Promise<BaseLabel> {
     const { owner, repo } = this.validateProjectRef(projectRef);
-    try {
-      const { data: label } = await this.octokit.rest.issues.createLabel({
-        owner,
-        repo,
-        name: data.name,
-        color: data.color?.replace('#', '') || '000000',
-        description: data.description,
-      });
+    const { data: label } = await this.octokit.rest.issues.createLabel({
+      owner,
+      repo,
+      name: data.name,
+      color: data.color?.replace('#', '') || '000000',
+      description: data.description,
+    });
 
-      return this.mapGitHubLabelToBase(label);
-    } catch (error) {
-      throw error;
-    }
+    return this.mapGitHubLabelToBase(label);
   }
 }
