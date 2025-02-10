@@ -15,22 +15,22 @@ describe('GitHubProvider', () => {
     description: 'Test Description',
     state: {
       id: 'open',
-      name: 'Open'
+      name: 'Open',
     },
     labels: [
       {
         id: 'bug',
         name: 'bug',
         color: '#ff0000',
-        description: 'Bug label'
-      }
+        description: 'Bug label',
+      },
     ],
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-02T00:00:00Z',
     metadata: {
       provider: 'github',
-      externalId: '123'
-    }
+      externalId: '123',
+    },
   };
 
   beforeEach(() => {
@@ -43,15 +43,17 @@ describe('GitHubProvider', () => {
     mockClient.createIssue.mockResolvedValue(mockBaseIssue);
     mockClient.updateIssue.mockResolvedValue(mockBaseIssue);
     mockClient.deleteIssue.mockResolvedValue();
-    mockClient.getLabels.mockResolvedValue([{
-      id: 'bug',
-      name: 'bug',
-      color: '#ff0000',
-      description: 'Bug label'
-    }]);
+    mockClient.getLabels.mockResolvedValue([
+      {
+        id: 'bug',
+        name: 'bug',
+        color: '#ff0000',
+        description: 'Bug label',
+      },
+    ]);
     mockClient.getStates.mockResolvedValue([
       { id: 'open', name: 'Open' },
-      { id: 'closed', name: 'Closed' }
+      { id: 'closed', name: 'Closed' },
     ]);
   });
 
@@ -65,23 +67,23 @@ describe('GitHubProvider', () => {
         description: 'Test Description',
         state: {
           category: 'todo',
-          name: 'Open'
+          name: 'Open',
         },
         labels: [
           {
             name: 'bug',
             description: 'Bug label',
-            color: '#ff0000'
-          }
+            color: '#ff0000',
+          },
         ],
         metadata: {
           externalId: '123',
-          nodeId: ''
+          nodeId: '',
         },
         sourceProvider: 'github',
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
-        assignees: []
+        assignees: [],
       });
     });
   });
@@ -96,21 +98,23 @@ describe('GitHubProvider', () => {
         description: 'Test Description',
         state: {
           category: NormalizedStateCategory.Todo,
-          name: 'Open'
+          name: 'Open',
         },
-        labels: [{
-          name: 'bug',
-          color: '#ff0000',
-          description: 'Bug label'
-        }],
+        labels: [
+          {
+            name: 'bug',
+            color: '#ff0000',
+            description: 'Bug label',
+          },
+        ],
         assignees: [],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
         sourceProvider: 'github',
         metadata: {
           externalId: '123',
-          nodeId: ''
-        }
+          nodeId: '',
+        },
       });
     });
   });
@@ -122,14 +126,16 @@ describe('GitHubProvider', () => {
         description: 'New Description',
         state: {
           category: NormalizedStateCategory.Todo,
-          name: 'Open'
+          name: 'Open',
         },
-        labels: [{
-          name: 'bug',
-          color: '#ff0000',
-          description: 'Bug label'
-        }],
-        assignees: []
+        labels: [
+          {
+            name: 'bug',
+            color: '#ff0000',
+            description: 'Bug label',
+          },
+        ],
+        assignees: [],
       };
 
       const issue = await provider.createIssue(newIssue);
@@ -137,7 +143,7 @@ describe('GitHubProvider', () => {
         title: 'New Issue',
         description: 'New Description',
         state: 'open',
-        labels: ['bug']
+        labels: ['bug'],
       });
       expect(issue.title).toBe('Test Issue');
       expect(issue.sourceProvider).toBe('github');
@@ -150,14 +156,14 @@ describe('GitHubProvider', () => {
         title: 'Updated Issue',
         state: {
           category: NormalizedStateCategory.Done,
-          name: 'Closed'
-        }
+          name: 'Closed',
+        },
       };
 
       const issue = await provider.updateIssue('123', updateData);
       expect(mockClient.updateIssue).toHaveBeenCalledWith('owner/repo', '123', {
         title: 'Updated Issue',
-        state: 'closed'
+        state: 'closed',
       });
       expect(issue.title).toBe('Test Issue');
       expect(issue.sourceProvider).toBe('github');
@@ -178,7 +184,7 @@ describe('GitHubProvider', () => {
       expect(labels[0]).toEqual({
         name: 'bug',
         color: '#ff0000',
-        description: 'Bug label'
+        description: 'Bug label',
       });
     });
   });
@@ -190,12 +196,12 @@ describe('GitHubProvider', () => {
       expect(states).toEqual([
         {
           category: NormalizedStateCategory.Todo,
-          name: 'Open'
+          name: 'Open',
         },
         {
           category: NormalizedStateCategory.Done,
-          name: 'Closed'
-        }
+          name: 'Closed',
+        },
       ]);
     });
   });
@@ -211,7 +217,7 @@ describe('GitHubProvider', () => {
       const config = provider.getStateMappingConfig();
       expect(config.stateMapping).toEqual({
         open: NormalizedStateCategory.Backlog,
-        closed: NormalizedStateCategory.Done
+        closed: NormalizedStateCategory.Done,
       });
       expect(config.defaultCategory).toBe(NormalizedStateCategory.Backlog);
     });

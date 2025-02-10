@@ -1,4 +1,12 @@
-import { IssueTrackingClient, BaseIssue, BaseLabel, BaseState, CreateIssueData, UpdateIssueData, CreateLabelData } from './base-client';
+import {
+  IssueTrackingClient,
+  BaseIssue,
+  BaseLabel,
+  BaseState,
+  CreateIssueData,
+  UpdateIssueData,
+  CreateLabelData,
+} from './base-client.js';
 
 export interface PlaneState {
   id: string;
@@ -106,6 +114,19 @@ export class PlaneClient implements IssueTrackingClient {
     return { workspaceId, projectId };
   }
 
+  private validateProjectRef(projectRef: string): { workspaceSlug: string; projectSlug: string } {
+    const [workspaceSlug, projectSlug] = projectRef.split('/');
+    if (
+      !workspaceSlug ||
+      !projectSlug ||
+      workspaceSlug.trim() === '' ||
+      projectSlug.trim() === ''
+    ) {
+      throw new Error(`Invalid workspace ID: ${projectRef}`);
+    }
+    return { workspaceSlug, projectSlug };
+  }
+
   private mapPlaneIssueToBase(issue: PlaneIssue): BaseIssue {
     return {
       id: issue.id,
@@ -115,21 +136,24 @@ export class PlaneClient implements IssueTrackingClient {
         id: issue.state.id,
         name: issue.state.name,
         color: issue.state.color,
-        description: issue.state.description
+        description: issue.state.description,
       },
-      labels: issue.labels.map(label => ({
+      labels: issue.labels.map((label) => ({
         id: label.id,
         name: label.name,
         color: label.color,
-        description: label.description
+        description: label.description,
       })),
       createdAt: issue.created_at,
       updatedAt: issue.updated_at,
-      metadata: issue.metadata
+      metadata: issue.metadata,
     };
   }
 
-  private async mapBaseToPlaneIssue(data: CreateIssueData | UpdateIssueData, existingIssue?: PlaneIssue): Promise<Partial<CreatePlaneIssueData>> {
+  private async mapBaseToPlaneIssue(
+    data: CreateIssueData | UpdateIssueData,
+    existingIssue?: PlaneIssue
+  ): Promise<Partial<CreatePlaneIssueData>> {
     const result: Partial<CreatePlaneIssueData> = {};
 
     if ('title' in data) {
@@ -156,13 +180,13 @@ export class PlaneClient implements IssueTrackingClient {
     if (typeof labels[0] === 'string') {
       return labels as string[];
     }
-    return (labels as BaseLabel[]).map(label => label.id);
+    return (labels as BaseLabel[]).map((label) => label.id);
   }
 
-  async listIssues(projectRef: string): Promise<BaseIssue[]> {
-    const { workspaceId, projectId } = this.parseProjectRef(projectRef);
-    const issues = await this.getIssuesFromApi(workspaceId, projectId);
-    return issues.map(issue => this.mapPlaneIssueToBase(issue));
+  public async listIssues(projectRef: string): Promise<BaseIssue[]> {
+    const { workspaceSlug, projectSlug } = this.validateProjectRef(projectRef);
+    const issues = await this.getIssuesFromApi(workspaceSlug, projectSlug);
+    return issues.map((issue) => this.mapPlaneIssueToBase(issue));
   }
 
   async getIssue(projectRef: string, issueId: string): Promise<BaseIssue> {
@@ -181,15 +205,21 @@ export class PlaneClient implements IssueTrackingClient {
       state: data.state,
       state_id: typeof data.state === 'string' ? data.state : data.state.id,
       label_ids: Array.isArray(data.labels)
-        ? data.labels.map(label => typeof label === 'string' ? label : label.id)
+        ? data.labels.map((label: string | BaseLabel) =>
+            typeof label === 'string' ? label : label.id
+          )
         : undefined,
       assignee_ids: [],
-      metadata: data.metadata
+      metadata: data.metadata,
     });
     return this.mapPlaneIssueToBase(issue);
   }
 
-  async updateIssue(projectRef: string, issueId: string, data: UpdateIssueData): Promise<BaseIssue> {
+  async updateIssue(
+    projectRef: string,
+    issueId: string,
+    data: UpdateIssueData
+  ): Promise<BaseIssue> {
     const { workspaceId, projectId } = this.parseProjectRef(projectRef);
     const planeData = await this.mapBaseToPlaneIssue(data);
     const issue = await this.updateIssueInApi(workspaceId, projectId, issueId, {
@@ -199,10 +229,12 @@ export class PlaneClient implements IssueTrackingClient {
       state: data.state,
       state_id: typeof data.state === 'string' ? data.state : data.state?.id,
       label_ids: Array.isArray(data.labels)
-        ? data.labels.map(label => typeof label === 'string' ? label : label.id)
+        ? data.labels.map((label: string | BaseLabel) =>
+            typeof label === 'string' ? label : label.id
+          )
         : undefined,
       assignee_ids: [],
-      metadata: data.metadata
+      metadata: data.metadata,
     });
     return this.mapPlaneIssueToBase(issue);
   }
@@ -215,22 +247,22 @@ export class PlaneClient implements IssueTrackingClient {
   async getLabels(projectRef: string): Promise<BaseLabel[]> {
     const { workspaceId, projectId } = this.parseProjectRef(projectRef);
     const labels = await this.getLabelsFromApi(workspaceId, projectId);
-    return labels.map(label => ({
+    return labels.map((label) => ({
       id: label.id,
       name: label.name,
       color: label.color,
-      description: label.description
+      description: label.description,
     }));
   }
 
   async getStates(projectRef: string): Promise<BaseState[]> {
     const { workspaceId, projectId } = this.parseProjectRef(projectRef);
     const states = await this.getStatesFromApi(workspaceId, projectId);
-    return states.map(state => ({
+    return states.map((state) => ({
       id: state.id,
       name: state.name,
       color: state.color,
-      description: state.description
+      description: state.description,
     }));
   }
 
@@ -240,12 +272,20 @@ export class PlaneClient implements IssueTrackingClient {
     return this.fetchApi(endpoint);
   }
 
-  protected async getIssueFromApi(workspaceId: string, projectId: string, issueId: string): Promise<PlaneIssue> {
+  protected async getIssueFromApi(
+    workspaceId: string,
+    projectId: string,
+    issueId: string
+  ): Promise<PlaneIssue> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/issues/${issueId}/`;
     return this.fetchApi(endpoint);
   }
 
-  protected async createIssueInApi(workspaceId: string, projectId: string, data: CreatePlaneIssueData): Promise<PlaneIssue> {
+  protected async createIssueInApi(
+    workspaceId: string,
+    projectId: string,
+    data: CreatePlaneIssueData
+  ): Promise<PlaneIssue> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/issues/`;
     return this.fetchApi(endpoint, {
       method: 'POST',
@@ -255,12 +295,17 @@ export class PlaneClient implements IssueTrackingClient {
         state_id: data.state_id,
         label_ids: data.label_ids,
         assignee_ids: data.assignee_ids,
-        metadata: data.metadata
-      })
+        metadata: data.metadata,
+      }),
     });
   }
 
-  protected async updateIssueInApi(workspaceId: string, projectId: string, issueId: string, data: UpdatePlaneIssueData): Promise<PlaneIssue> {
+  protected async updateIssueInApi(
+    workspaceId: string,
+    projectId: string,
+    issueId: string,
+    data: UpdatePlaneIssueData
+  ): Promise<PlaneIssue> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/issues/${issueId}/`;
     return this.fetchApi(endpoint, {
       method: 'PATCH',
@@ -270,15 +315,19 @@ export class PlaneClient implements IssueTrackingClient {
         state_id: data.state_id,
         label_ids: data.label_ids,
         assignee_ids: data.assignee_ids,
-        metadata: data.metadata
-      })
+        metadata: data.metadata,
+      }),
     });
   }
 
-  protected async deleteIssueFromApi(workspaceId: string, projectId: string, issueId: string): Promise<void> {
+  protected async deleteIssueFromApi(
+    workspaceId: string,
+    projectId: string,
+    issueId: string
+  ): Promise<void> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/issues/${issueId}/`;
     await this.fetchApi(endpoint, {
-      method: 'DELETE'
+      method: 'DELETE',
     });
   }
 
@@ -299,49 +348,66 @@ export class PlaneClient implements IssueTrackingClient {
       id: label.id,
       name: label.name,
       color: label.color,
-      description: label.description
+      description: label.description,
     };
   }
 
-  async updateLabel(projectRef: string, labelId: string, data: Partial<CreateLabelData>): Promise<BaseLabel> {
+  async updateLabel(
+    projectRef: string,
+    labelId: string,
+    data: Partial<CreateLabelData>
+  ): Promise<BaseLabel> {
     const { workspaceId, projectId } = this.parseProjectRef(projectRef);
     const label = await this.updateLabelInApi(workspaceId, projectId, labelId, data);
     return {
       id: label.id,
       name: label.name,
       color: label.color,
-      description: label.description
+      description: label.description,
     };
   }
 
-  protected async createLabelInApi(workspaceId: string, projectId: string, data: CreateLabelData): Promise<PlaneLabel> {
+  protected async createLabelInApi(
+    workspaceId: string,
+    projectId: string,
+    data: CreateLabelData
+  ): Promise<PlaneLabel> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/labels/`;
     return this.fetchApi(endpoint, {
       method: 'POST',
       body: JSON.stringify({
         name: data.name,
         color: data.color || '#000000',
-        description: data.description
-      })
+        description: data.description,
+      }),
     });
   }
 
-  protected async updateLabelInApi(workspaceId: string, projectId: string, labelId: string, data: Partial<CreateLabelData>): Promise<PlaneLabel> {
+  protected async updateLabelInApi(
+    workspaceId: string,
+    projectId: string,
+    labelId: string,
+    data: Partial<CreateLabelData>
+  ): Promise<PlaneLabel> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/labels/${labelId}/`;
     return this.fetchApi(endpoint, {
       method: 'PATCH',
       body: JSON.stringify({
         name: data.name,
         color: data.color,
-        description: data.description
-      })
+        description: data.description,
+      }),
     });
   }
 
-  protected async deleteLabelInApi(workspaceId: string, projectId: string, labelId: string): Promise<void> {
+  protected async deleteLabelInApi(
+    workspaceId: string,
+    projectId: string,
+    labelId: string
+  ): Promise<void> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/labels/${labelId}/`;
     await this.fetchApi(endpoint, {
-      method: 'DELETE'
+      method: 'DELETE',
     });
   }
 
@@ -350,7 +416,10 @@ export class PlaneClient implements IssueTrackingClient {
     return this.getPropertiesFromApi(workspaceId, projectId);
   }
 
-  protected async getPropertiesFromApi(workspaceId: string, projectId: string): Promise<PlaneIssueProperty[]> {
+  protected async getPropertiesFromApi(
+    workspaceId: string,
+    projectId: string
+  ): Promise<PlaneIssueProperty[]> {
     const endpoint = `/api/v1/workspaces/${workspaceId}/projects/${projectId}/properties/`;
     return this.fetchApi(endpoint);
   }
@@ -360,10 +429,10 @@ export class PlaneClient implements IssueTrackingClient {
     const response = await fetch(url, {
       ...options,
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
-        ...options.headers
-      }
+        ...options.headers,
+      },
     });
 
     if (!response?.ok) {

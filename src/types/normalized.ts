@@ -6,7 +6,7 @@ export enum NormalizedStateCategory {
   Todo = 'todo',
   InProgress = 'in_progress',
   Ready = 'ready',
-  Done = 'done'
+  Done = 'done',
 }
 
 /**
@@ -14,7 +14,7 @@ export enum NormalizedStateCategory {
  */
 export interface NormalizedState {
   category: NormalizedStateCategory;
-  name: string;  // Original state name from provider
+  name: string; // Original state name from provider
   color?: string;
   metadata?: Record<string, any>;
 }
@@ -49,7 +49,7 @@ export interface NormalizedIssue {
     provider?: string;
     [key: string]: any;
   };
-  sourceProvider: string;  // Name of the provider this issue came from
+  sourceProvider: string; // Name of the provider this issue came from
   properties?: Record<string, any>;
 }
 
@@ -58,7 +58,7 @@ export interface NormalizedIssue {
  */
 export interface StateMapping {
   normalizedCategory: NormalizedStateCategory;
-  providerStates: string[];  // List of provider state names that map to this category
+  providerStates: string[]; // List of provider state names that map to this category
 }
 
 /**
@@ -106,7 +106,13 @@ export const NormalizedIssueUtils = {
    */
   compare(source: NormalizedIssue, target: NormalizedIssue): IssueComparison {
     const conflicts: IssueComparison['conflicts'] = [];
-    const fields: (keyof NormalizedIssue)[] = ['title', 'description', 'state', 'labels', 'assignees'];
+    const fields: (keyof NormalizedIssue)[] = [
+      'title',
+      'description',
+      'state',
+      'labels',
+      'assignees',
+    ];
 
     for (const field of fields) {
       if (field === 'state') {
@@ -114,54 +120,62 @@ export const NormalizedIssueUtils = {
           conflicts.push({
             field,
             sourceValue: source.state,
-            targetValue: target.state
+            targetValue: target.state,
           });
         }
       } else if (field === 'labels') {
-        const sourceLabels = new Set(source.labels.map(l => l.name.toLowerCase()));
-        const targetLabels = new Set(target.labels.map(l => l.name.toLowerCase()));
-        if (sourceLabels.size !== targetLabels.size ||
-            ![...sourceLabels].every(name => targetLabels.has(name))) {
+        const sourceLabels = new Set(source.labels.map((l) => l.name.toLowerCase()));
+        const targetLabels = new Set(target.labels.map((l) => l.name.toLowerCase()));
+        if (
+          sourceLabels.size !== targetLabels.size ||
+          ![...sourceLabels].every((name) => targetLabels.has(name))
+        ) {
           conflicts.push({
             field,
             sourceValue: source.labels,
-            targetValue: target.labels
+            targetValue: target.labels,
           });
         }
       } else if (field === 'assignees') {
         const sourceAssignees = new Set(source.assignees);
         const targetAssignees = new Set(target.assignees);
-        if (sourceAssignees.size !== targetAssignees.size ||
-            ![...sourceAssignees].every(a => targetAssignees.has(a))) {
+        if (
+          sourceAssignees.size !== targetAssignees.size ||
+          ![...sourceAssignees].every((a) => targetAssignees.has(a))
+        ) {
           conflicts.push({
             field,
             sourceValue: source.assignees,
-            targetValue: target.assignees
+            targetValue: target.assignees,
           });
         }
       } else if (source[field] !== target[field]) {
         conflicts.push({
           field,
           sourceValue: source[field],
-          targetValue: target[field]
+          targetValue: target[field],
         });
       }
     }
 
     return {
       hasChanges: conflicts.length > 0,
-      conflicts
+      conflicts,
     };
   },
 
   /**
    * Create a normalized state from a category
    */
-  createState(category: NormalizedStateCategory, originalName: string, color?: string): NormalizedState {
+  createState(
+    category: NormalizedStateCategory,
+    originalName: string,
+    color?: string
+  ): NormalizedState {
     return {
       category,
       name: originalName,
-      color
+      color,
     };
   },
 
@@ -171,5 +185,5 @@ export const NormalizedIssueUtils = {
   getCategoryFromName(stateName: string, config: StateMappingConfig): NormalizedStateCategory {
     const name = stateName.toLowerCase();
     return config.stateMapping[name] || config.defaultCategory;
-  }
+  },
 };

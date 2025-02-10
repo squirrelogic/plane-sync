@@ -1,49 +1,23 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { sync } from './commands/sync';
-import { status } from './commands/status';
-import { syncAssignees } from './commands/assignees';
-import { ConfigManager } from './config';
+import { sync } from './commands/sync.js';
+import { status } from './commands/status.js';
+import { assignees } from './commands/assignees.js';
+import { ConfigManager } from './config.js';
+
+const config = new ConfigManager();
 
 const program = new Command();
 
 program
   .name('plane-sync')
-  .description('Synchronize issues between Plane and GitHub')
-  .version('0.1.0');
+  .description('CLI tool to sync GitHub issues with Plane')
+  .version('0.15.0');
 
-program
-  .command('sync')
-  .description('Synchronize issues between Plane and GitHub')
-  .option('-c, --config <path>', 'Path to config file')
-  .action((options) => {
-    sync(options).catch(error => {
-      console.error('Error:', error);
-      process.exit(1);
-    });
-  });
-
-program
-  .command('status')
-  .description('Show sync status')
-  .action(() => {
-    status().catch(error => {
-      console.error('Error:', error);
-      process.exit(1);
-    });
-  });
-
-program
-  .command('assignees')
-  .description('Synchronize assignee mappings between Plane and GitHub')
-  .option('-c, --config <path>', 'Path to config file')
-  .action((options) => {
-    syncAssignees(options).catch(error => {
-      console.error('Error:', error);
-      process.exit(1);
-    });
-  });
+program.addCommand(sync);
+program.addCommand(status);
+program.addCommand(assignees);
 
 program
   .command('init')

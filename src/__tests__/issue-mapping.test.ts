@@ -1,7 +1,18 @@
 import { GitHubProvider } from '../providers/github-provider';
 import { PlaneProvider } from '../providers/plane-provider';
-import { NormalizedIssue, NormalizedStateCategory, NormalizedLabel, NormalizedState } from '../types/normalized';
-import { PlaneClient, PlaneIssue, PlaneState, PlaneLabel, CreatePlaneIssueData } from '../clients/plane-client';
+import {
+  NormalizedIssue,
+  NormalizedStateCategory,
+  NormalizedLabel,
+  NormalizedState,
+} from '../types/normalized';
+import {
+  PlaneClient,
+  PlaneIssue,
+  PlaneState,
+  PlaneLabel,
+  CreatePlaneIssueData,
+} from '../clients/plane-client';
 import { GitHubIssue, CreateGitHubIssue, GitHubNormalizer } from '../normalizers/github-normalizer';
 import { PlaneNormalizer } from '../normalizers/plane-normalizer';
 import { NormalizedIssueUtils } from '../types/normalized';
@@ -25,12 +36,12 @@ describe('Issue Mapping', () => {
     state: 'open',
     labels: [
       { name: 'bug', color: 'ff0000', description: 'Bug label' },
-      { name: 'feature', color: '00ff00', description: 'Feature label' }
+      { name: 'feature', color: '00ff00', description: 'Feature label' },
     ],
     assignees: [{ login: 'user1' }, { login: 'user2' }],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-02T00:00:00Z',
-    node_id: 'MDU6SXNzdWUx'
+    node_id: 'MDU6SXNzdWUx',
   };
 
   beforeEach(() => {
@@ -38,7 +49,11 @@ describe('Issue Mapping', () => {
 
     // Create real normalizers
     githubNormalizer = new GitHubNormalizer();
-    planeNormalizer = new PlaneNormalizer(planeClient as unknown as PlaneClient, 'workspace-id', 'project-id');
+    planeNormalizer = new PlaneNormalizer(
+      planeClient as unknown as PlaneClient,
+      'workspace-id',
+      'project-id'
+    );
   });
 
   describe('GitHub Issue Mapping', () => {
@@ -51,28 +66,28 @@ describe('Issue Mapping', () => {
         description: 'Test Description',
         state: {
           category: NormalizedStateCategory.Todo,
-          name: 'Open'
+          name: 'Open',
         },
         labels: [
           {
             name: 'bug',
             description: 'Bug label',
-            color: '#ff0000'
+            color: '#ff0000',
           },
           {
             name: 'feature',
             description: 'Feature label',
-            color: '#00ff00'
-          }
+            color: '#00ff00',
+          },
         ],
         assignees: ['user1', 'user2'],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
         metadata: {
           nodeId: 'MDU6SXNzdWUx',
-          externalId: '123'
+          externalId: '123',
         },
-        sourceProvider: 'github'
+        sourceProvider: 'github',
       });
     });
 
@@ -86,7 +101,7 @@ describe('Issue Mapping', () => {
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-02T00:00:00Z',
         node_id: 'MDU6SXNzdWUx',
-        body: undefined
+        body: undefined,
       };
 
       const normalizedIssue = await githubNormalizer.normalize(minimalIssue);
@@ -98,13 +113,13 @@ describe('Issue Mapping', () => {
     test('should handle various GitHub state mappings', async () => {
       const testCases = [
         { state: 'open', expectedCategory: NormalizedStateCategory.Todo },
-        { state: 'closed', expectedCategory: NormalizedStateCategory.Done }
+        { state: 'closed', expectedCategory: NormalizedStateCategory.Done },
       ];
 
       for (const { state, expectedCategory } of testCases) {
         const issue: GitHubIssue = {
           ...mockGitHubRawIssue,
-          state: state as 'open' | 'closed'
+          state: state as 'open' | 'closed',
         };
 
         const normalizedIssue = await githubNormalizer.normalize(issue);
@@ -118,15 +133,15 @@ describe('Issue Mapping', () => {
         labels: [
           { name: 'test1', color: 'abc', description: undefined }, // Short color
           { name: 'test2', color: undefined, description: undefined }, // No color
-          { name: 'test3', color: 'ff0000', description: undefined } // Full color
-        ]
+          { name: 'test3', color: 'ff0000', description: undefined }, // Full color
+        ],
       };
 
       const normalizedIssue = await githubNormalizer.normalize(issue);
       expect(normalizedIssue.labels).toEqual([
         { name: 'test1', color: '#abc' },
         { name: 'test2' },
-        { name: 'test3', color: '#ff0000' }
+        { name: 'test3', color: '#ff0000' },
       ]);
     });
 
@@ -137,16 +152,16 @@ describe('Issue Mapping', () => {
         description: 'Test Description',
         state: {
           category: NormalizedStateCategory.Done,
-          name: 'Done'
+          name: 'Done',
         },
         labels: [
           { name: 'bug', color: '#ff0000', description: 'Bug label' },
-          { name: 'feature', color: '#00ff00' }
+          { name: 'feature', color: '#00ff00' },
         ],
         assignees: ['user1', 'user2'],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
-        sourceProvider: 'github'
+        sourceProvider: 'github',
       };
 
       const githubIssue = await githubNormalizer.denormalize(normalizedIssue);
@@ -155,7 +170,7 @@ describe('Issue Mapping', () => {
         body: 'Test Description',
         state: 'closed',
         labels: ['bug', 'feature'],
-        assignees: ['user1', 'user2']
+        assignees: ['user1', 'user2'],
       });
     });
 
@@ -166,13 +181,13 @@ describe('Issue Mapping', () => {
         description: '',
         state: {
           category: NormalizedStateCategory.Todo,
-          name: 'Todo'
+          name: 'Todo',
         },
         labels: [],
         assignees: [],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
-        sourceProvider: 'github'
+        sourceProvider: 'github',
       };
 
       const githubIssue = await githubNormalizer.denormalize(minimalNormalizedIssue);
@@ -181,7 +196,7 @@ describe('Issue Mapping', () => {
         body: '',
         state: 'open',
         labels: [],
-        assignees: []
+        assignees: [],
       });
     });
   });
@@ -190,12 +205,12 @@ describe('Issue Mapping', () => {
     const mockPlaneStates: PlaneState[] = [
       { id: 'state1', name: 'Backlog', color: '#cccccc' },
       { id: 'state2', name: 'In Progress', color: '#ffff00' },
-      { id: 'state3', name: 'Done', color: '#00ff00' }
+      { id: 'state3', name: 'Done', color: '#00ff00' },
     ];
 
     const mockPlaneLabels: PlaneLabel[] = [
       { id: 'label1', name: 'bug', color: '#ff0000', description: 'Bug label' },
-      { id: 'label2', name: 'feature', color: '#00ff00', description: 'Feature label' }
+      { id: 'label2', name: 'feature', color: '#00ff00', description: 'Feature label' },
     ];
 
     const mockPlaneRawIssue: PlaneIssue = {
@@ -206,7 +221,7 @@ describe('Issue Mapping', () => {
       labels: [mockPlaneLabels[0], mockPlaneLabels[1]], // Both labels
       assignee_ids: ['user1', 'user2'],
       created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-02T00:00:00Z'
+      updated_at: '2024-01-02T00:00:00Z',
     };
 
     beforeEach(async () => {
@@ -226,29 +241,29 @@ describe('Issue Mapping', () => {
           category: NormalizedStateCategory.InProgress,
           name: 'In Progress',
           color: '#ffff00',
-          metadata: { id: 'state2' }
+          metadata: { id: 'state2' },
         },
         labels: [
           {
             name: 'bug',
             color: '#ff0000',
             description: 'Bug label',
-            metadata: { id: 'label1' }
+            metadata: { id: 'label1' },
           },
           {
             name: 'feature',
             color: '#00ff00',
             description: 'Feature label',
-            metadata: { id: 'label2' }
-          }
+            metadata: { id: 'label2' },
+          },
         ],
         assignees: ['user1', 'user2'],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
         metadata: {
-          stateId: 'state2'
+          stateId: 'state2',
         },
-        sourceProvider: 'plane'
+        sourceProvider: 'plane',
       });
     });
 
@@ -260,14 +275,14 @@ describe('Issue Mapping', () => {
         labels: [],
         assignee_ids: [],
         created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-02T00:00:00Z'
+        updated_at: '2024-01-02T00:00:00Z',
       };
 
       const normalizedIssue = await planeNormalizer.normalize(minimalIssue);
       expect(normalizedIssue).toMatchObject({
         description: '',
         labels: [],
-        assignees: []
+        assignees: [],
       });
     });
   });
@@ -278,7 +293,7 @@ describe('Issue Mapping', () => {
       planeClient.getStates.mockResolvedValue([
         { id: 'state1', name: 'Backlog', color: '#cccccc' },
         { id: 'state2', name: 'In Progress', color: '#ffff00' },
-        { id: 'state3', name: 'Done', color: '#00ff00' }
+        { id: 'state3', name: 'Done', color: '#00ff00' },
       ]);
       planeClient.getLabels.mockResolvedValue([]);
       await planeNormalizer.initialize();
@@ -290,12 +305,12 @@ describe('Issue Mapping', () => {
         name: 'Test Issue',
         state: {
           id: 'unknown',
-          name: 'Unknown State'
+          name: 'Unknown State',
         },
         labels: [],
         assignee_ids: [],
         created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-02T00:00:00Z'
+        updated_at: '2024-01-02T00:00:00Z',
       };
 
       const normalizedIssue = await planeNormalizer.normalize(planeIssue);
@@ -311,16 +326,16 @@ describe('Issue Mapping', () => {
         description: 'Test Description',
         state: {
           category: NormalizedStateCategory.Done,
-          name: 'Done'
+          name: 'Done',
         },
         labels: [
           { name: 'bug', color: '#ff0000', description: 'Bug label' },
-          { name: 'feature', color: '#00ff00' }
+          { name: 'feature', color: '#00ff00' },
         ],
         assignees: ['user1', 'user2'],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
-        sourceProvider: 'github'
+        sourceProvider: 'github',
       };
 
       const githubIssue = await githubNormalizer.denormalize(normalizedIssue);
@@ -329,7 +344,7 @@ describe('Issue Mapping', () => {
         body: 'Test Description',
         state: 'closed',
         labels: ['bug', 'feature'],
-        assignees: ['user1', 'user2']
+        assignees: ['user1', 'user2'],
       });
     });
   });
@@ -341,7 +356,7 @@ describe('Issue Mapping', () => {
         { id: 'state1', name: 'Backlog', color: '#cccccc' },
         { id: 'state2', name: 'Todo', color: '#ffff00' },
         { id: 'state3', name: 'In Progress', color: '#00ff00' },
-        { id: 'state4', name: 'Done', color: '#0000ff' }
+        { id: 'state4', name: 'Done', color: '#0000ff' },
       ]);
 
       // Initialize with empty label cache
@@ -354,17 +369,19 @@ describe('Issue Mapping', () => {
     test('should create new labels when they dont exist', async () => {
       // Setup: Empty label cache (already set in beforeEach)
       let labelIdCounter = 1;
-      planeClient.createLabel.mockImplementation(async (projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => ({
-        id: `label-${labelIdCounter++}`,
-        name: data.name,
-        color: data.color || '#000000',
-        description: data.description || '',
-        sort_order: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        project: projectRef.split('/')[1],
-        workspace: projectRef.split('/')[0]
-      }));
+      planeClient.createLabel.mockImplementation(
+        async (projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => ({
+          id: `label-${labelIdCounter++}`,
+          name: data.name,
+          color: data.color || '#000000',
+          description: data.description || '',
+          sort_order: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          project: projectRef.split('/')[1],
+          workspace: projectRef.split('/')[0],
+        })
+      );
 
       const planeIssue: PlaneIssue = {
         id: 'plane-123',
@@ -372,11 +389,11 @@ describe('Issue Mapping', () => {
         state: { id: 'state1', name: 'Backlog', color: '#cccccc' },
         labels: [
           { id: 'new1', name: 'newLabel1', color: '#ff0000' },
-          { id: 'new2', name: 'newLabel2', color: '#00ff00' }
+          { id: 'new2', name: 'newLabel2', color: '#00ff00' },
         ],
         assignee_ids: [],
         created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-02T00:00:00Z'
+        updated_at: '2024-01-02T00:00:00Z',
       };
 
       const normalizedIssue = await planeNormalizer.normalize(planeIssue);
@@ -394,17 +411,19 @@ describe('Issue Mapping', () => {
 
     test('should handle label creation and caching during denormalization', async () => {
       let labelIdCounter = 1;
-      planeClient.createLabel.mockImplementation(async (projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => ({
-        id: `label-${labelIdCounter++}`,
-        name: data.name,
-        color: data.color || '#000000',
-        description: data.description || '',
-        sort_order: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        project: projectRef.split('/')[1],
-        workspace: projectRef.split('/')[0]
-      }));
+      planeClient.createLabel.mockImplementation(
+        async (projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => ({
+          id: `label-${labelIdCounter++}`,
+          name: data.name,
+          color: data.color || '#000000',
+          description: data.description || '',
+          sort_order: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          project: projectRef.split('/')[1],
+          workspace: projectRef.split('/')[0],
+        })
+      );
 
       const normalizedIssue: NormalizedIssue = {
         id: '123',
@@ -412,41 +431,41 @@ describe('Issue Mapping', () => {
         description: 'Test Description',
         state: {
           category: NormalizedStateCategory.Todo,
-          name: 'Todo'
+          name: 'Todo',
         },
-        labels: [
-          { name: 'newLabel', color: '#ff0000' }
-        ],
+        labels: [{ name: 'newLabel', color: '#ff0000' }],
         assignees: [],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
-        sourceProvider: 'plane'
+        sourceProvider: 'plane',
       };
 
       // First denormalization should create the label
       const firstResult = await planeNormalizer.denormalize(normalizedIssue);
       expect(planeClient.createLabel).toHaveBeenCalledTimes(1);
-      expect(firstResult.labels.map(l => l.id)).toEqual(['label-1']);
+      expect(firstResult.labels.map((l) => l.id)).toEqual(['label-1']);
 
       // Second call should use cached label
       const secondResult = await planeNormalizer.denormalize(normalizedIssue);
       expect(planeClient.createLabel).toHaveBeenCalledTimes(1); // Still 1, no new calls
-      expect(secondResult.labels.map(l => l.id)).toEqual(['label-1']);
+      expect(secondResult.labels.map((l) => l.id)).toEqual(['label-1']);
     });
 
     test('should handle label color and description during denormalization', async () => {
       let labelIdCounter = 1;
-      planeClient.createLabel.mockImplementation(async (projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => ({
-        id: `label-${labelIdCounter++}`,
-        name: data.name,
-        color: data.color || '#000000',
-        description: data.description || '',
-        sort_order: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        project: projectRef.split('/')[1],
-        workspace: projectRef.split('/')[0]
-      }));
+      planeClient.createLabel.mockImplementation(
+        async (projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => ({
+          id: `label-${labelIdCounter++}`,
+          name: data.name,
+          color: data.color || '#000000',
+          description: data.description || '',
+          sort_order: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          project: projectRef.split('/')[1],
+          workspace: projectRef.split('/')[0],
+        })
+      );
 
       const normalizedIssue: NormalizedIssue = {
         id: '123',
@@ -454,36 +473,30 @@ describe('Issue Mapping', () => {
         description: 'Test Description',
         state: {
           category: NormalizedStateCategory.Todo,
-          name: 'Todo'
+          name: 'Todo',
         },
         labels: [
           { name: 'label1', color: '#ff0000', description: 'Test Label' },
-          { name: 'label2' } // No color or description
+          { name: 'label2' }, // No color or description
         ],
         assignees: [],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
-        sourceProvider: 'plane'
+        sourceProvider: 'plane',
       };
 
       const result = await planeNormalizer.denormalize(normalizedIssue);
       expect(planeClient.createLabel).toHaveBeenCalledTimes(2);
-      expect(planeClient.createLabel).toHaveBeenCalledWith(
-        'workspace-id/project-id',
-        {
-          name: 'label1',
-          color: '#ff0000',
-          description: 'Test Label'
-        }
-      );
-      expect(planeClient.createLabel).toHaveBeenCalledWith(
-        'workspace-id/project-id',
-        {
-          name: 'label2',
-          color: '#000000'
-        }
-      );
-      expect(result.labels.map(l => l.id)).toEqual(['label-1', 'label-2']);
+      expect(planeClient.createLabel).toHaveBeenCalledWith('workspace-id/project-id', {
+        name: 'label1',
+        color: '#ff0000',
+        description: 'Test Label',
+      });
+      expect(planeClient.createLabel).toHaveBeenCalledWith('workspace-id/project-id', {
+        name: 'label2',
+        color: '#000000',
+      });
+      expect(result.labels.map((l) => l.id)).toEqual(['label-1', 'label-2']);
     });
   });
 
@@ -495,26 +508,30 @@ describe('Issue Mapping', () => {
         description: 'Original Description',
         state: {
           category: NormalizedStateCategory.Todo,
-          name: 'Todo'
+          name: 'Todo',
         },
         labels: [{ name: 'bug' }],
         assignees: ['user1'],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
-        sourceProvider: 'github'
+        sourceProvider: 'github',
       };
 
       const target: NormalizedIssue = {
         ...source,
         title: 'Changed Title',
         labels: [{ name: 'feature' }],
-        assignees: ['user2']
+        assignees: ['user2'],
       };
 
       const comparison = NormalizedIssueUtils.compare(source, target);
       expect(comparison.hasChanges).toBe(true);
       expect(comparison.conflicts).toHaveLength(3);
-      expect(comparison.conflicts.map((c: { field: string }) => c.field)).toEqual(['title', 'labels', 'assignees']);
+      expect(comparison.conflicts.map((c: { field: string }) => c.field)).toEqual([
+        'title',
+        'labels',
+        'assignees',
+      ]);
     });
 
     test('should handle all state category mappings', () => {
@@ -524,18 +541,18 @@ describe('Issue Mapping', () => {
         { name: 'in progress', expected: NormalizedStateCategory.InProgress },
         { name: 'ready', expected: NormalizedStateCategory.Ready },
         { name: 'done', expected: NormalizedStateCategory.Done },
-        { name: 'unknown', expected: NormalizedStateCategory.Backlog }
+        { name: 'unknown', expected: NormalizedStateCategory.Backlog },
       ];
 
       const config = {
         stateMapping: {
-          'backlog': NormalizedStateCategory.Backlog,
-          'todo': NormalizedStateCategory.Todo,
+          backlog: NormalizedStateCategory.Backlog,
+          todo: NormalizedStateCategory.Todo,
           'in progress': NormalizedStateCategory.InProgress,
-          'ready': NormalizedStateCategory.Ready,
-          'done': NormalizedStateCategory.Done
+          ready: NormalizedStateCategory.Ready,
+          done: NormalizedStateCategory.Done,
         },
-        defaultCategory: NormalizedStateCategory.Backlog
+        defaultCategory: NormalizedStateCategory.Backlog,
       };
 
       testCases.forEach(({ name, expected }) => {
@@ -554,7 +571,7 @@ describe('Issue Mapping', () => {
       expect(state).toEqual({
         category: NormalizedStateCategory.InProgress,
         name: 'In Progress',
-        color: '#ff0000'
+        color: '#ff0000',
       });
     });
   });

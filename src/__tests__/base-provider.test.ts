@@ -1,14 +1,19 @@
 import { BaseProvider } from '../providers/base-provider';
-import { NormalizedStateCategory, StateMappingConfig, NormalizedIssue, NormalizedState } from '../types/normalized';
+import {
+  NormalizedStateCategory,
+  StateMappingConfig,
+  NormalizedIssue,
+  NormalizedState,
+} from '../types/normalized';
 import { IssueState } from '../types';
 
 class TestProvider extends BaseProvider {
   protected readonly name = 'test';
   protected readonly stateMappingConfig: StateMappingConfig = {
     stateMapping: {
-      'test-state': NormalizedStateCategory.Todo
+      'test-state': NormalizedStateCategory.Todo,
     },
-    defaultCategory: NormalizedStateCategory.Backlog
+    defaultCategory: NormalizedStateCategory.Backlog,
   };
 
   async getIssues(): Promise<NormalizedIssue[]> {
@@ -19,7 +24,9 @@ class TestProvider extends BaseProvider {
     throw new Error('Not implemented');
   }
 
-  async createIssue(issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>): Promise<NormalizedIssue> {
+  async createIssue(
+    issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>
+  ): Promise<NormalizedIssue> {
     throw new Error('Not implemented');
   }
 
@@ -31,11 +38,20 @@ class TestProvider extends BaseProvider {
     throw new Error('Not implemented');
   }
 
-  async getLabels(): Promise<{ name: string; color?: string; description?: string; metadata?: Record<string, any>; }[]> {
+  async getLabels(): Promise<
+    { name: string; color?: string; description?: string; metadata?: Record<string, any> }[]
+  > {
     return [];
   }
 
-  async getStates(): Promise<{ category: NormalizedStateCategory; name: string; color?: string; metadata?: Record<string, any>; }[]> {
+  async getStates(): Promise<
+    {
+      category: NormalizedStateCategory;
+      name: string;
+      color?: string;
+      metadata?: Record<string, any>;
+    }[]
+  > {
     return [];
   }
 
@@ -47,8 +63,13 @@ class TestProvider extends BaseProvider {
     return {
       id: state.metadata?.id || '',
       name: state.name,
-      category: state.category.replace('_', '') as 'backlog' | 'todo' | 'in_progress' | 'ready' | 'done',
-      color: state.color
+      category: state.category.replace('_', '') as
+        | 'backlog'
+        | 'todo'
+        | 'in_progress'
+        | 'ready'
+        | 'done',
+      color: state.color,
     };
   }
 }
@@ -71,9 +92,9 @@ describe('BaseProvider', () => {
       const config = provider.getStateMappingConfig();
       expect(config).toEqual({
         stateMapping: {
-          'test-state': NormalizedStateCategory.Todo
+          'test-state': NormalizedStateCategory.Todo,
         },
-        defaultCategory: NormalizedStateCategory.Backlog
+        defaultCategory: NormalizedStateCategory.Backlog,
       });
     });
   });
@@ -85,7 +106,9 @@ describe('BaseProvider', () => {
     });
 
     test('should return default category for unknown state', () => {
-      const category = provider.getStateMappingConfig().stateMapping['unknown-state'] || provider.getStateMappingConfig().defaultCategory;
+      const category =
+        provider.getStateMappingConfig().stateMapping['unknown-state'] ||
+        provider.getStateMappingConfig().defaultCategory;
       expect(category).toBe(NormalizedStateCategory.Backlog);
     });
   });
@@ -96,7 +119,7 @@ describe('BaseProvider', () => {
         category: NormalizedStateCategory.Todo,
         name: 'Todo',
         color: '#ff0000',
-        metadata: { id: 'state-1' }
+        metadata: { id: 'state-1' },
       };
 
       const issueState = provider.mapState(normalizedState);
@@ -104,14 +127,14 @@ describe('BaseProvider', () => {
         id: 'state-1',
         name: 'Todo',
         category: 'todo',
-        color: '#ff0000'
+        color: '#ff0000',
       });
     });
 
     test('should handle state without metadata or color', () => {
       const normalizedState: NormalizedState = {
         category: NormalizedStateCategory.InProgress,
-        name: 'In Progress'
+        name: 'In Progress',
       };
 
       const issueState = provider.mapState(normalizedState);
@@ -119,7 +142,7 @@ describe('BaseProvider', () => {
         id: '',
         name: 'In Progress',
         category: 'inprogress',
-        color: undefined
+        color: undefined,
       });
     });
   });

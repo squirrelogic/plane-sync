@@ -1,5 +1,9 @@
-import { PlaneClient, PlaneIssue, PlaneState, PlaneLabel, PlaneIssueProperty, PlaneIssuePropertyValue } from '../clients/plane-client';
-import { BaseIssue, BaseLabel, BaseState } from '../clients/base-client';
+import {
+  PlaneClient,
+  PlaneIssue,
+  PlaneIssueProperty,
+  PlaneIssuePropertyValue,
+} from '../clients/plane-client';
 
 describe('PlaneClient', () => {
   let client: PlaneClient;
@@ -13,8 +17,8 @@ describe('PlaneClient', () => {
       display_name: 'External ID',
       property_type: 'text',
       default_value: '123',
-      description: 'External identifier'
-    }
+      description: 'External identifier',
+    },
   ];
   const mockPropertyValues: PlaneIssuePropertyValue[] = [
     {
@@ -24,8 +28,8 @@ describe('PlaneClient', () => {
       sort_order: 1,
       is_active: true,
       is_default: true,
-      external_id: '123'
-    }
+      external_id: '123',
+    },
   ];
 
   const mockPlaneIssue: PlaneIssue = {
@@ -36,22 +40,24 @@ describe('PlaneClient', () => {
       id: 'state-1',
       name: 'Todo',
       color: '#ff0000',
-      description: 'Todo state'
+      description: 'Todo state',
     },
-    labels: [{
-      id: 'label-1',
-      name: 'bug',
-      color: '#ff0000',
-      description: 'Bug label'
-    }],
+    labels: [
+      {
+        id: 'label-1',
+        name: 'bug',
+        color: '#ff0000',
+        description: 'Bug label',
+      },
+    ],
     assignee_ids: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-02T00:00:00Z',
     metadata: {
       stateId: 'state-1',
       externalId: '123',
-      provider: 'plane'
-    }
+      provider: 'plane',
+    },
   };
 
   beforeEach(() => {
@@ -63,10 +69,10 @@ describe('PlaneClient', () => {
     fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
       if (url.includes('/issues/')) {
         // Check if it's a single issue request (ends with issue ID)
-        if (url.match(/\/issues\/[^\/]+\/?$/)) {
+        if (url.match(/\/issues\/[^/]+\/?$/)) {
           return {
             ok: true,
-            json: () => Promise.resolve(mockPlaneIssue)
+            json: () => Promise.resolve(mockPlaneIssue),
           };
         }
         // Check if it's an issue list request
@@ -74,70 +80,76 @@ describe('PlaneClient', () => {
           if (options?.method === 'POST') {
             return {
               ok: true,
-              json: () => Promise.resolve(mockPlaneIssue)
+              json: () => Promise.resolve(mockPlaneIssue),
             };
           }
           if (options?.method === 'PATCH') {
             return {
               ok: true,
-              json: () => Promise.resolve(mockPlaneIssue)
+              json: () => Promise.resolve(mockPlaneIssue),
             };
           }
           if (options?.method === 'DELETE') {
             return {
               ok: true,
-              json: () => Promise.resolve({})
+              json: () => Promise.resolve({}),
             };
           }
           return {
             ok: true,
-            json: () => Promise.resolve([mockPlaneIssue])
+            json: () => Promise.resolve([mockPlaneIssue]),
           };
         }
       }
       if (url.includes('/issue-types/')) {
         return {
           ok: true,
-          json: () => Promise.resolve(mockIssueTypes)
+          json: () => Promise.resolve(mockIssueTypes),
         };
       }
       if (url.includes('/issue-properties/') && !url.includes('/values/')) {
         return {
           ok: true,
-          json: () => Promise.resolve(mockIssueProperties)
+          json: () => Promise.resolve(mockIssueProperties),
         };
       }
       if (url.includes('/values/')) {
         return {
           ok: true,
-          json: () => Promise.resolve(mockPropertyValues)
+          json: () => Promise.resolve(mockPropertyValues),
         };
       }
       if (url.includes('/labels/')) {
         return {
           ok: true,
-          json: () => Promise.resolve([{
-            id: 'label-1',
-            name: 'bug',
-            color: '#ff0000',
-            description: 'Bug label'
-          }])
+          json: () =>
+            Promise.resolve([
+              {
+                id: 'label-1',
+                name: 'bug',
+                color: '#ff0000',
+                description: 'Bug label',
+              },
+            ]),
         };
       }
       if (url.includes('/states/')) {
         return {
           ok: true,
-          json: () => Promise.resolve([{
-            id: 'state-1',
-            name: 'Todo',
-            color: '#ff0000',
-            description: 'Todo state'
-          }])
+          json: () =>
+            Promise.resolve([
+              {
+                id: 'state-1',
+                name: 'Todo',
+                color: '#ff0000',
+                description: 'Todo state',
+              },
+            ]),
         };
       }
       return {
         ok: true,
-        json: () => Promise.resolve({})
+        json: () => Promise.resolve({}),
       };
     });
   });
@@ -146,7 +158,7 @@ describe('PlaneClient', () => {
     test('should parse valid project reference', async () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve([])
+        json: () => Promise.resolve([]),
       });
 
       await client.listIssues('workspace-1/project-1');
@@ -154,15 +166,15 @@ describe('PlaneClient', () => {
         'http://plane.org/api/v1/workspaces/workspace-1/projects/project-1/issues/',
         expect.objectContaining({
           headers: {
-            'Authorization': 'Bearer test-token',
-            'Content-Type': 'application/json'
-          }
+            Authorization: 'Bearer test-token',
+            'Content-Type': 'application/json',
+          },
         })
       );
     });
 
     test('should throw error for invalid project reference', async () => {
-      await expect(client.listIssues('invalid')).rejects.toThrow('Invalid project reference');
+      await expect(client.listIssues('invalid')).rejects.toThrow('Invalid workspace ID: invalid');
     });
   });
 
@@ -177,21 +189,23 @@ describe('PlaneClient', () => {
           id: 'state-1',
           name: 'Todo',
           color: '#ff0000',
-          description: 'Todo state'
+          description: 'Todo state',
         },
-        labels: [{
-          id: 'label-1',
-          name: 'bug',
-          color: '#ff0000',
-          description: 'Bug label'
-        }],
+        labels: [
+          {
+            id: 'label-1',
+            name: 'bug',
+            color: '#ff0000',
+            description: 'Bug label',
+          },
+        ],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
         metadata: {
           stateId: 'state-1',
           externalId: '123',
-          provider: 'plane'
-        }
+          provider: 'plane',
+        },
       });
     });
   });
@@ -207,21 +221,23 @@ describe('PlaneClient', () => {
           id: 'state-1',
           name: 'Todo',
           color: '#ff0000',
-          description: 'Todo state'
+          description: 'Todo state',
         },
-        labels: [{
-          id: 'label-1',
-          name: 'bug',
-          color: '#ff0000',
-          description: 'Bug label'
-        }],
+        labels: [
+          {
+            id: 'label-1',
+            name: 'bug',
+            color: '#ff0000',
+            description: 'Bug label',
+          },
+        ],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
         metadata: {
           stateId: 'state-1',
           externalId: '123',
-          provider: 'plane'
-        }
+          provider: 'plane',
+        },
       });
     });
   });
@@ -233,13 +249,13 @@ describe('PlaneClient', () => {
         description: 'New Description',
         state: {
           id: 'state-1',
-          name: 'Todo'
+          name: 'Todo',
         },
         labels: ['label-1'],
         metadata: {
           externalId: '123',
-          provider: 'plane'
-        }
+          provider: 'plane',
+        },
       });
 
       expect(issue).toEqual({
@@ -250,21 +266,23 @@ describe('PlaneClient', () => {
           id: 'state-1',
           name: 'Todo',
           color: '#ff0000',
-          description: 'Todo state'
+          description: 'Todo state',
         },
-        labels: [{
-          id: 'label-1',
-          name: 'bug',
-          color: '#ff0000',
-          description: 'Bug label'
-        }],
+        labels: [
+          {
+            id: 'label-1',
+            name: 'bug',
+            color: '#ff0000',
+            description: 'Bug label',
+          },
+        ],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
         metadata: {
           stateId: 'state-1',
           externalId: '123',
-          provider: 'plane'
-        }
+          provider: 'plane',
+        },
       });
     });
   });
@@ -276,13 +294,13 @@ describe('PlaneClient', () => {
         description: 'Updated Description',
         state: {
           id: 'state-2',
-          name: 'Done'
+          name: 'Done',
         },
         labels: ['label-2'],
         metadata: {
           externalId: '456',
-          provider: 'plane'
-        }
+          provider: 'plane',
+        },
       });
 
       expect(issue).toEqual({
@@ -293,21 +311,23 @@ describe('PlaneClient', () => {
           id: 'state-1',
           name: 'Todo',
           color: '#ff0000',
-          description: 'Todo state'
+          description: 'Todo state',
         },
-        labels: [{
-          id: 'label-1',
-          name: 'bug',
-          color: '#ff0000',
-          description: 'Bug label'
-        }],
+        labels: [
+          {
+            id: 'label-1',
+            name: 'bug',
+            color: '#ff0000',
+            description: 'Bug label',
+          },
+        ],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
         metadata: {
           stateId: 'state-1',
           externalId: '123',
-          provider: 'plane'
-        }
+          provider: 'plane',
+        },
       });
     });
   });
@@ -321,24 +341,28 @@ describe('PlaneClient', () => {
   describe('getLabels', () => {
     test('should list and map Plane labels', async () => {
       const labels = await client.getLabels('workspace-1/project-1');
-      expect(labels).toEqual([{
-        id: 'label-1',
-        name: 'bug',
-        color: '#ff0000',
-        description: 'Bug label'
-      }]);
+      expect(labels).toEqual([
+        {
+          id: 'label-1',
+          name: 'bug',
+          color: '#ff0000',
+          description: 'Bug label',
+        },
+      ]);
     });
   });
 
   describe('getStates', () => {
     test('should list and map Plane states', async () => {
       const states = await client.getStates('workspace-1/project-1');
-      expect(states).toEqual([{
-        id: 'state-1',
-        name: 'Todo',
-        color: '#ff0000',
-        description: 'Todo state'
-      }]);
+      expect(states).toEqual([
+        {
+          id: 'state-1',
+          name: 'Todo',
+          color: '#ff0000',
+          description: 'Todo state',
+        },
+      ]);
     });
   });
 
@@ -346,46 +370,48 @@ describe('PlaneClient', () => {
     test('should create Plane label with all fields', async () => {
       fetchMock.mockImplementationOnce(async () => ({
         ok: true,
-        json: () => Promise.resolve({
-          id: 'label-1',
-          name: 'new-label',
-          color: '#ff0000',
-          description: 'New label'
-        })
+        json: () =>
+          Promise.resolve({
+            id: 'label-1',
+            name: 'new-label',
+            color: '#ff0000',
+            description: 'New label',
+          }),
       }));
 
       const label = await client.createLabel('workspace-1/project-1', {
         name: 'new-label',
         color: '#ff0000',
-        description: 'New label'
+        description: 'New label',
       });
 
       expect(label).toEqual({
         id: 'label-1',
         name: 'new-label',
         color: '#ff0000',
-        description: 'New label'
+        description: 'New label',
       });
     });
 
     test('should handle label creation with minimal fields', async () => {
       fetchMock.mockImplementationOnce(async () => ({
         ok: true,
-        json: () => Promise.resolve({
-          id: 'label-1',
-          name: 'minimal-label',
-          color: '#000000'
-        })
+        json: () =>
+          Promise.resolve({
+            id: 'label-1',
+            name: 'minimal-label',
+            color: '#000000',
+          }),
       }));
 
       const label = await client.createLabel('workspace-1/project-1', {
-        name: 'minimal-label'
+        name: 'minimal-label',
       });
 
       expect(label).toEqual({
         id: 'label-1',
         name: 'minimal-label',
-        color: '#000000'
+        color: '#000000',
       });
     });
   });
@@ -395,20 +421,22 @@ describe('PlaneClient', () => {
       fetchMock.mockImplementationOnce(async () => ({
         ok: false,
         status: 404,
-        statusText: 'Not Found'
+        statusText: 'Not Found',
       }));
 
-      await expect(client.listIssues('workspace-1/project-1'))
-        .rejects
-        .toThrow('Plane API error: 404 Not Found');
+      await expect(client.listIssues('workspace-1/project-1')).rejects.toThrow(
+        'Plane API error: 404 Not Found'
+      );
     });
 
     test('should handle network errors', async () => {
       fetchMock.mockRejectedValueOnce(new Error('Network error'));
 
-      await expect(client.listIssues('workspace-1/project-1'))
-        .rejects
-        .toThrow('Network error');
+      await expect(client.listIssues('workspace-1/project-1')).rejects.toThrow('Network error');
+    });
+
+    test('should handle invalid workspace ID', async () => {
+      await expect(client.listIssues('test')).rejects.toThrow('Invalid workspace ID: test');
     });
   });
 });

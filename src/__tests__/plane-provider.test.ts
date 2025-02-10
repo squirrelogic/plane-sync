@@ -16,23 +16,23 @@ describe('PlaneProvider', () => {
     state: {
       id: 'state-1',
       name: 'Todo',
-      color: '#ff0000'
+      color: '#ff0000',
     },
     labels: [
       {
         id: 'label-1',
         name: 'bug',
         color: '#ff0000',
-        description: 'Bug label'
-      }
+        description: 'Bug label',
+      },
     ],
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-02T00:00:00Z',
     metadata: {
       provider: 'plane',
       externalId: '123',
-      stateId: 'state-1'
-    }
+      stateId: 'state-1',
+    },
   };
 
   beforeEach(() => {
@@ -45,16 +45,18 @@ describe('PlaneProvider', () => {
     mockClient.createIssue.mockResolvedValue(mockBaseIssue);
     mockClient.updateIssue.mockResolvedValue(mockBaseIssue);
     mockClient.deleteIssue.mockResolvedValue();
-    mockClient.getLabels.mockResolvedValue([{
-      id: 'label-1',
-      name: 'bug',
-      color: '#ff0000',
-      description: 'Bug label'
-    }]);
+    mockClient.getLabels.mockResolvedValue([
+      {
+        id: 'label-1',
+        name: 'bug',
+        color: '#ff0000',
+        description: 'Bug label',
+      },
+    ]);
     mockClient.getStates.mockResolvedValue([
       { id: 'state-1', name: 'Todo', color: '#ff0000' },
       { id: 'state-2', name: 'In Progress', color: '#ffff00' },
-      { id: 'state-3', name: 'Done', color: '#00ff00' }
+      { id: 'state-3', name: 'Done', color: '#00ff00' },
     ]);
     mockClient.getProperties.mockResolvedValue([
       {
@@ -69,17 +71,17 @@ describe('PlaneProvider', () => {
             name: 'High',
             sort_order: 1,
             is_active: true,
-            is_default: false
+            is_default: false,
           },
           {
             id: 'medium',
             name: 'Medium',
             sort_order: 2,
             is_active: true,
-            is_default: true
-          }
-        ]
-      }
+            is_default: true,
+          },
+        ],
+      },
     ]);
   });
 
@@ -95,15 +97,15 @@ describe('PlaneProvider', () => {
           category: NormalizedStateCategory.Todo,
           name: 'Todo',
           color: '#ff0000',
-          metadata: { id: 'state-1' }
+          metadata: { id: 'state-1' },
         },
         labels: [
           {
             name: 'bug',
             color: '#ff0000',
             description: 'Bug label',
-            metadata: { id: 'label-1' }
-          }
+            metadata: { id: 'label-1' },
+          },
         ],
         assignees: [],
         createdAt: '2024-01-01T00:00:00Z',
@@ -111,9 +113,9 @@ describe('PlaneProvider', () => {
         metadata: {
           provider: 'plane',
           externalId: '123',
-          stateId: 'state-1'
+          stateId: 'state-1',
         },
-        sourceProvider: 'plane'
+        sourceProvider: 'plane',
       });
     });
   });
@@ -135,18 +137,18 @@ describe('PlaneProvider', () => {
         state: {
           category: NormalizedStateCategory.Todo,
           name: 'Todo',
-          metadata: { id: 'state-1' }
+          metadata: { id: 'state-1' },
         },
         labels: [
           {
             name: 'bug',
             color: '#ff0000',
             description: 'Bug label',
-            metadata: { id: 'label-1' }
-          }
+            metadata: { id: 'label-1' },
+          },
         ],
         assignees: [],
-        metadata: {}
+        metadata: {},
       };
 
       const issue = await provider.createIssue(newIssue);
@@ -161,8 +163,8 @@ describe('PlaneProvider', () => {
         assignee_ids: [],
         metadata: {
           externalId: undefined,
-          provider: undefined
-        }
+          provider: undefined,
+        },
       });
     });
   });
@@ -174,9 +176,9 @@ describe('PlaneProvider', () => {
         state: {
           category: NormalizedStateCategory.Done,
           name: 'Done',
-          metadata: { id: 'state-3' }
+          metadata: { id: 'state-3' },
         },
-        labels: []
+        labels: [],
       };
 
       const issue = await provider.updateIssue('plane-123', updateData);
@@ -188,7 +190,7 @@ describe('PlaneProvider', () => {
         label_ids: [],
         labels: [],
         assignee_ids: undefined,
-        metadata: undefined
+        metadata: undefined,
       });
     });
   });
@@ -208,7 +210,7 @@ describe('PlaneProvider', () => {
         name: 'bug',
         color: '#ff0000',
         description: 'Bug label',
-        metadata: { id: 'label-1' }
+        metadata: { id: 'label-1' },
       });
     });
   });
@@ -222,20 +224,20 @@ describe('PlaneProvider', () => {
           category: NormalizedStateCategory.Todo,
           name: 'Todo',
           color: '#ff0000',
-          metadata: { id: 'state-1' }
+          metadata: { id: 'state-1' },
         },
         {
           category: NormalizedStateCategory.InProgress,
           name: 'In Progress',
           color: '#ffff00',
-          metadata: { id: 'state-2' }
+          metadata: { id: 'state-2' },
         },
         {
           category: NormalizedStateCategory.Done,
           name: 'Done',
           color: '#00ff00',
-          metadata: { id: 'state-3' }
-        }
+          metadata: { id: 'state-3' },
+        },
       ]);
     });
   });
@@ -254,7 +256,7 @@ describe('PlaneProvider', () => {
         todo: NormalizedStateCategory.Todo,
         in_progress: NormalizedStateCategory.InProgress,
         ready: NormalizedStateCategory.Ready,
-        done: NormalizedStateCategory.Done
+        done: NormalizedStateCategory.Done,
       });
       expect(config.defaultCategory).toBe(NormalizedStateCategory.Backlog);
     });

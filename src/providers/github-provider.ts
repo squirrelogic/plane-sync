@@ -1,19 +1,29 @@
-import { RepoProvider } from './repo-provider';
-import { NormalizedIssue, NormalizedLabel, NormalizedState, StateMappingConfig, NormalizedStateCategory } from '../types/normalized';
-import { IssueState } from '../types';
-import { GitHubNormalizer, GitHubIssue, CreateGitHubIssue } from '../normalizers/github-normalizer';
-import { BaseProvider } from './base-provider';
-import { GitHubClient } from '../clients/github-client';
-import { BaseIssue } from '../clients/base-client';
+import { RepoProvider } from './repo-provider.js';
+import {
+  NormalizedIssue,
+  NormalizedLabel,
+  NormalizedState,
+  StateMappingConfig,
+  NormalizedStateCategory,
+} from '../types/normalized.js';
+import { IssueState, Label } from '../types/index.js';
+import {
+  GitHubNormalizer,
+  GitHubIssue,
+  CreateGitHubIssue,
+} from '../normalizers/github-normalizer.js';
+import { BaseProvider } from './base-provider.js';
+import { GitHubClient } from '../clients/github-client.js';
+import { BaseIssue } from '../clients/base-client.js';
 
 export class GitHubProvider extends BaseProvider implements RepoProvider {
   protected readonly name = 'github';
   protected readonly stateMappingConfig: StateMappingConfig = {
     stateMapping: {
       open: NormalizedStateCategory.Backlog,
-      closed: NormalizedStateCategory.Done
+      closed: NormalizedStateCategory.Done,
     },
-    defaultCategory: NormalizedStateCategory.Backlog
+    defaultCategory: NormalizedStateCategory.Backlog,
   };
   public readonly normalizer: GitHubNormalizer;
 
@@ -38,21 +48,25 @@ export class GitHubProvider extends BaseProvider implements RepoProvider {
       title: baseIssue.title,
       body: baseIssue.description || '',
       state: baseIssue.state.name.toLowerCase() as 'open' | 'closed',
-      labels: baseIssue.labels.map(label => ({
+      labels: baseIssue.labels.map((label: Label) => ({
         name: label.name,
         color: label.color?.replace('#', ''),
-        description: label.description
+        description: label.description,
       })),
       assignees: [],
       created_at: baseIssue.createdAt,
       updated_at: baseIssue.updatedAt,
-      node_id: baseIssue.metadata?.nodeId || ''
+      node_id: baseIssue.metadata?.nodeId || '',
     };
   }
 
   async getIssues(): Promise<NormalizedIssue[]> {
     const issues = await this.client.listIssues(this.projectRef);
-    return Promise.all(issues.map(issue => this.normalizer.normalize(this.convertBaseIssueToGitHub(issue))));
+    return Promise.all(
+      issues.map((issue: BaseIssue) =>
+        this.normalizer.normalize(this.convertBaseIssueToGitHub(issue))
+      )
+    );
   }
 
   async getIssue(id: string): Promise<NormalizedIssue> {
@@ -60,12 +74,14 @@ export class GitHubProvider extends BaseProvider implements RepoProvider {
     return this.normalizer.normalize(this.convertBaseIssueToGitHub(issue));
   }
 
-  async createIssue(issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>): Promise<NormalizedIssue> {
+  async createIssue(
+    issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>
+  ): Promise<NormalizedIssue> {
     const createdIssue = await this.client.createIssue(this.projectRef, {
       title: issue.title,
       description: issue.description,
       state: issue.state.name.toLowerCase(),
-      labels: issue.labels?.map(l => l.name)
+      labels: issue.labels?.map((l: NormalizedLabel) => l.name),
     });
     return this.normalizer.normalize(this.convertBaseIssueToGitHub(createdIssue));
   }
@@ -75,7 +91,7 @@ export class GitHubProvider extends BaseProvider implements RepoProvider {
       title: issue.title,
       description: issue.description,
       state: issue.state?.name.toLowerCase(),
-      labels: issue.labels?.map(l => l.name)
+      labels: issue.labels?.map((l) => l.name),
     };
 
     const updatedIssue = await this.client.updateIssue(this.projectRef, id, updateData);
@@ -88,10 +104,10 @@ export class GitHubProvider extends BaseProvider implements RepoProvider {
 
   async getLabels(): Promise<NormalizedLabel[]> {
     const labels = await this.client.getLabels(this.projectRef);
-    return labels.map(label => ({
+    return labels.map((label) => ({
       name: label.name,
       color: label.color,
-      description: label.description
+      description: label.description,
     }));
   }
 
@@ -100,12 +116,12 @@ export class GitHubProvider extends BaseProvider implements RepoProvider {
     return [
       {
         category: NormalizedStateCategory.Todo,
-        name: 'Open'
+        name: 'Open',
       },
       {
         category: NormalizedStateCategory.Done,
-        name: 'Closed'
-      }
+        name: 'Closed',
+      },
     ];
   }
 
@@ -116,10 +132,10 @@ export class GitHubProvider extends BaseProvider implements RepoProvider {
   getStateMappingConfig(): StateMappingConfig {
     return {
       stateMapping: {
-        'open': NormalizedStateCategory.Backlog,
-        'closed': NormalizedStateCategory.Done
+        open: NormalizedStateCategory.Backlog,
+        closed: NormalizedStateCategory.Done,
       },
-      defaultCategory: NormalizedStateCategory.Backlog
+      defaultCategory: NormalizedStateCategory.Backlog,
     };
   }
 
@@ -128,12 +144,17 @@ export class GitHubProvider extends BaseProvider implements RepoProvider {
   }
 
   mapState(state: NormalizedState): IssueState {
-    const category = state.category.replace('_', '') as 'backlog' | 'todo' | 'in_progress' | 'ready' | 'done';
+    const category = state.category.replace('_', '') as
+      | 'backlog'
+      | 'todo'
+      | 'in_progress'
+      | 'ready'
+      | 'done';
     return {
       id: '',
       name: state.name,
       category,
-      color: state.color
+      color: state.color,
     };
   }
 }

@@ -1,8 +1,8 @@
-import { NormalizedIssue } from './normalized';
+import { NormalizedIssue } from './normalized.js';
 
 export interface Issue {
   id: string;
-  externalId?: string;  // ID from external system (e.g., GitHub issue number)
+  externalId?: string; // ID from external system (e.g., GitHub issue number)
   title: string;
   description: string;
   state: IssueState;
@@ -10,7 +10,7 @@ export interface Issue {
   assignees: string[];
   createdAt: string;
   updatedAt: string;
-  metadata?: Record<string, any>;  // Store provider-specific data
+  metadata?: Record<string, any>; // Store provider-specific data
 }
 
 export interface IssueState {

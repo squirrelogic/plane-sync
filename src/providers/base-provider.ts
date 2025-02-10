@@ -1,6 +1,13 @@
-import { NormalizedIssue, NormalizedLabel, NormalizedState, StateMappingConfig, NormalizedStateCategory, NormalizedIssueUtils } from '../types/normalized';
-import { IssueState } from '../types';
-import { RepoProvider } from './repo-provider';
+import {
+  NormalizedIssue,
+  NormalizedLabel,
+  NormalizedState,
+  StateMappingConfig,
+  NormalizedStateCategory,
+  NormalizedIssueUtils,
+} from '../types/normalized.js';
+import { IssueState } from '../types/index.js';
+import { RepoProvider } from './repo-provider.js';
 
 export abstract class BaseProvider implements RepoProvider {
   protected abstract readonly name: string;
@@ -8,7 +15,9 @@ export abstract class BaseProvider implements RepoProvider {
 
   abstract getIssues(): Promise<NormalizedIssue[]>;
   abstract getIssue(id: string): Promise<NormalizedIssue>;
-  abstract createIssue(issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>): Promise<NormalizedIssue>;
+  abstract createIssue(
+    issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>
+  ): Promise<NormalizedIssue>;
   abstract updateIssue(id: string, issue: Partial<NormalizedIssue>): Promise<NormalizedIssue>;
   abstract deleteIssue(id: string): Promise<void>;
   abstract getLabels(): Promise<NormalizedLabel[]>;
@@ -34,6 +43,12 @@ export abstract class BaseProvider implements RepoProvider {
 
   protected compareIssues(source: NormalizedIssue, target: NormalizedIssue): string[] {
     const comparison = NormalizedIssueUtils.compare(source, target);
-    return comparison.conflicts.map(c => c.field);
+    return comparison.conflicts.map((c: { field: string }) => c.field);
+  }
+
+  protected getConflictingFields(
+    comparison: { field: string; sourceValue: any; targetValue: any }[]
+  ): string[] {
+    return comparison.map((c: { field: string }) => c.field);
   }
 }

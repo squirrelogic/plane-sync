@@ -41,7 +41,7 @@ export class BrowserService {
   async getWorkspaceMembers(): Promise<WorkspaceResponse['members']> {
     const browser = await puppeteer.launch({
       headless: true,
-      defaultViewport: null
+      defaultViewport: null,
     });
 
     try {
@@ -60,7 +60,7 @@ export class BrowserService {
           'input[name="email"]',
           '#email',
           'input[placeholder*="email" i]',
-          'input[placeholder*="mail" i]'
+          'input[placeholder*="mail" i]',
         ];
 
         for (const selector of selectors) {
@@ -88,7 +88,7 @@ export class BrowserService {
           'input[type="password"]',
           'input[name="password"]',
           '#password',
-          'input[placeholder*="password" i]'
+          'input[placeholder*="password" i]',
         ];
 
         for (const selector of selectors) {
@@ -116,7 +116,7 @@ export class BrowserService {
           if (!resp.ok) {
             throw new Error(`Failed to fetch members: ${resp.statusText}`);
           }
-          const data = await resp.json() as WorkspaceResponse;
+          const data = (await resp.json()) as WorkspaceResponse;
           return data.members;
         },
         this.workspaceSlug,

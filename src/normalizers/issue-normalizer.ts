@@ -1,6 +1,6 @@
-import { NormalizedIssue } from '../types/normalized';
+import { NormalizedIssue } from '../types/normalized.js';
 
-export interface IssueNormalizer<T, U = Partial<T>> {
+export interface IssueNormalizer<T = any, U = any> {
   /**
    * Convert a provider-specific issue to a normalized issue format
    */

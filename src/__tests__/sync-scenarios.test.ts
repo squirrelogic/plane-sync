@@ -24,13 +24,13 @@ describe('Sync Scenarios', () => {
     description: 'Test Description',
     state: {
       category: NormalizedStateCategory.Todo,
-      name: 'Todo'
+      name: 'Todo',
     },
     labels: [],
     assignees: [],
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-02T00:00:00Z',
-    sourceProvider: 'github'
+    sourceProvider: 'github',
   };
 
   const mockPlaneIssue: NormalizedIssue = {
@@ -39,21 +39,31 @@ describe('Sync Scenarios', () => {
     description: 'Test Description',
     state: {
       category: NormalizedStateCategory.Todo,
-      name: 'Todo'
+      name: 'Todo',
     },
     labels: [],
     assignees: [],
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
-    sourceProvider: 'plane'
+    sourceProvider: 'plane',
   };
 
   beforeEach(() => {
     githubClient = new GitHubClient('token') as jest.Mocked<GitHubClient>;
     planeClient = new PlaneClient('http://plane.org', 'api-key') as jest.Mocked<PlaneClient>;
 
-    githubProvider = new GitHubProvider(githubClient, 'owner', 'repo', 1, false) as jest.Mocked<GitHubProvider>;
-    planeProvider = new PlaneProvider(planeClient, 'workspace', 'project') as jest.Mocked<PlaneProvider>;
+    githubProvider = new GitHubProvider(
+      githubClient,
+      'owner',
+      'repo',
+      1,
+      false
+    ) as jest.Mocked<GitHubProvider>;
+    planeProvider = new PlaneProvider(
+      planeClient,
+      'workspace',
+      'project'
+    ) as jest.Mocked<PlaneProvider>;
     syncService = new SyncService(githubProvider, planeProvider);
 
     // Reset all mocks before each test
@@ -70,7 +80,7 @@ describe('Sync Scenarios', () => {
       const githubIssue = { ...mockGithubIssue };
       const planeIssue = {
         ...mockPlaneIssue,
-        metadata: {} // No external ID
+        metadata: {}, // No external ID
       };
 
       githubProvider.getIssues.mockResolvedValue([githubIssue]);
@@ -88,8 +98,8 @@ describe('Sync Scenarios', () => {
         assignees: githubIssue.assignees,
         metadata: {
           externalId: githubIssue.id,
-          provider: 'github'
-        }
+          provider: 'github',
+        },
       });
     });
 
@@ -98,7 +108,7 @@ describe('Sync Scenarios', () => {
       const githubIssue = {
         ...mockGithubIssue,
         title: 'Unique Title',
-        description: 'Unique Description'
+        description: 'Unique Description',
       };
 
       githubProvider.getIssues.mockResolvedValue([githubIssue]);
@@ -116,8 +126,8 @@ describe('Sync Scenarios', () => {
         assignees: githubIssue.assignees,
         metadata: {
           externalId: githubIssue.id,
-          provider: 'github'
-        }
+          provider: 'github',
+        },
       });
     });
 
@@ -126,15 +136,15 @@ describe('Sync Scenarios', () => {
       const githubIssue = {
         ...mockGithubIssue,
         title: 'Updated Title',
-        updatedAt: '2024-01-02T00:00:00Z'
+        updatedAt: '2024-01-02T00:00:00Z',
       };
       const planeIssue = {
         ...mockPlaneIssue,
         updatedAt: '2024-01-01T00:00:00Z',
         metadata: {
           externalId: githubIssue.id,
-          provider: 'github'
-        }
+          provider: 'github',
+        },
       };
 
       githubProvider.getIssues.mockResolvedValue([githubIssue]);
@@ -149,7 +159,7 @@ describe('Sync Scenarios', () => {
         description: githubIssue.description,
         state: githubIssue.state,
         labels: githubIssue.labels,
-        assignees: githubIssue.assignees
+        assignees: githubIssue.assignees,
       });
     });
   });
@@ -159,7 +169,7 @@ describe('Sync Scenarios', () => {
       // Setup: Plane issue exists without GitHub ID
       const planeIssue = {
         ...mockPlaneIssue,
-        metadata: {} // No external ID
+        metadata: {}, // No external ID
       };
 
       githubProvider.getIssues.mockResolvedValue([]);
@@ -168,7 +178,7 @@ describe('Sync Scenarios', () => {
       // Mock GitHub issue creation
       const createdGithubIssue = {
         ...mockGithubIssue,
-        id: 'new-github-123'
+        id: 'new-github-123',
       };
       githubProvider.createIssue.mockResolvedValue(createdGithubIssue);
 
@@ -184,15 +194,15 @@ describe('Sync Scenarios', () => {
         assignees: planeIssue.assignees,
         metadata: {
           externalId: planeIssue.id,
-          provider: 'plane'
-        }
+          provider: 'plane',
+        },
       });
 
       expect(planeProvider.updateIssue).toHaveBeenCalledWith(planeIssue.id, {
         metadata: {
           externalId: createdGithubIssue.id,
-          provider: 'github'
-        }
+          provider: 'github',
+        },
       });
     });
 
@@ -202,8 +212,8 @@ describe('Sync Scenarios', () => {
         ...mockPlaneIssue,
         metadata: {
           externalId: 'deleted-github-123',
-          provider: 'github'
-        }
+          provider: 'github',
+        },
       };
 
       githubProvider.getIssues.mockResolvedValue([]);
@@ -216,8 +226,8 @@ describe('Sync Scenarios', () => {
       expect(planeProvider.updateIssue).toHaveBeenCalledWith(planeIssue.id, {
         state: {
           category: NormalizedStateCategory.Done,
-          name: 'Cancelled'
-        }
+          name: 'Cancelled',
+        },
       });
     });
   });
@@ -228,7 +238,7 @@ describe('Sync Scenarios', () => {
       const githubIssue = {
         ...mockGithubIssue,
         title: 'GitHub Title',
-        updatedAt: '2024-01-02T00:00:00Z'
+        updatedAt: '2024-01-02T00:00:00Z',
       };
       const planeIssue = {
         ...mockPlaneIssue,
@@ -236,8 +246,8 @@ describe('Sync Scenarios', () => {
         updatedAt: '2024-01-02T00:00:00Z',
         metadata: {
           externalId: githubIssue.id,
-          provider: 'github'
-        }
+          provider: 'github',
+        },
       };
 
       githubProvider.getIssues.mockResolvedValue([githubIssue]);
@@ -252,11 +262,13 @@ describe('Sync Scenarios', () => {
         sourceIssue: githubIssue,
         targetIssue: planeIssue,
         lastSyncHash: '',
-        conflictingFields: [{
-          field: 'title',
-          sourceValue: githubIssue.title,
-          targetValue: planeIssue.title
-        }]
+        conflictingFields: [
+          {
+            field: 'title',
+            sourceValue: githubIssue.title,
+            targetValue: planeIssue.title,
+          },
+        ],
       });
     });
 

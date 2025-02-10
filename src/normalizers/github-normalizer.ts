@@ -1,23 +1,23 @@
-import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized';
-import { IssueNormalizer } from './issue-normalizer';
+import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized.js';
+import { IssueNormalizer } from './issue-normalizer.js';
+import { BaseIssue, BaseLabel } from '../clients/base-client.js';
+
+export interface GitHubLabel {
+  name: string;
+  color?: string;
+  description?: string;
+}
 
 export interface GitHubIssue {
   number: number;
   title: string;
   body?: string;
   state: 'open' | 'closed';
-  labels: Array<{
-    name: string;
-    color?: string;
-    description?: string;
-  }>;
-  assignees: Array<{
-    login: string;
-  }>;
+  labels: GitHubLabel[];
+  assignees: any[];
   created_at: string;
   updated_at: string;
   node_id: string;
-  metadata?: any;
 }
 
 export interface CreateGitHubIssue {
@@ -25,82 +25,69 @@ export interface CreateGitHubIssue {
   body?: string;
   state?: 'open' | 'closed';
   labels?: string[];
-  assignees?: string[];
-  metadata?: any;
 }
 
-export class GitHubNormalizer implements IssueNormalizer<GitHubIssue, CreateGitHubIssue> {
+export class GitHubNormalizer implements IssueNormalizer<GitHubIssue, BaseIssue> {
   async normalize(issue: GitHubIssue): Promise<NormalizedIssue> {
     return {
       id: issue.number.toString(),
       title: issue.title,
       description: issue.body || '',
       state: {
-        category: issue.state === 'closed' ? NormalizedStateCategory.Done : NormalizedStateCategory.Todo,
-        name: issue.state === 'closed' ? 'Closed' : 'Open'
+        category: this.getCategoryFromState(issue.state),
+        name: issue.state.charAt(0).toUpperCase() + issue.state.slice(1),
       },
-      labels: issue.labels.map(label => ({
+      labels: issue.labels.map((label: GitHubLabel) => ({
         name: label.name,
         color: label.color ? `#${label.color}` : undefined,
-        description: label.description
+        description: label.description,
       })),
-      assignees: issue.assignees.map(assignee => assignee.login),
+      assignees: issue.assignees.map((a) => a.login),
       createdAt: issue.created_at,
       updatedAt: issue.updated_at,
-      sourceProvider: 'github',
       metadata: {
+        provider: 'github',
         externalId: issue.number.toString(),
         nodeId: issue.node_id,
-        ...(issue.metadata || {})
-      }
+      },
+      sourceProvider: 'github',
     };
   }
 
-  async denormalize(issue: NormalizedIssue): Promise<CreateGitHubIssue> {
-    const result: CreateGitHubIssue = {
+  async denormalize(issue: NormalizedIssue): Promise<BaseIssue> {
+    return {
+      id: issue.id,
       title: issue.title,
-      body: issue.description,
-      state: issue.state.category === NormalizedStateCategory.Done ? 'closed' : 'open',
-      labels: issue.labels.map(label => label.name),
-      assignees: issue.assignees
+      description: issue.description,
+      state: {
+        id: issue.state.name.toLowerCase(),
+        name: issue.state.name,
+      },
+      labels: issue.labels.map(
+        (label): BaseLabel => ({
+          id: label.name,
+          name: label.name,
+          color: label.color?.replace('#', ''),
+          description: label.description,
+        })
+      ),
+      createdAt: issue.createdAt,
+      updatedAt: issue.updatedAt,
+      metadata: {
+        ...issue.metadata,
+        provider: 'github',
+      },
     };
+  }
 
-    if (issue.metadata && Object.keys(issue.metadata).length > 0) {
-      result.metadata = issue.metadata;
+  private getCategoryFromState(state: string): NormalizedStateCategory {
+    switch (state.toLowerCase()) {
+      case 'open':
+        return NormalizedStateCategory.Backlog;
+      case 'closed':
+        return NormalizedStateCategory.Done;
+      default:
+        return NormalizedStateCategory.Backlog;
     }
-
-    return result;
-  }
-
-  private normalizeState(state: 'open' | 'closed'): NormalizedStateCategory {
-    return state === 'closed' ? NormalizedStateCategory.Done : NormalizedStateCategory.Todo;
-  }
-
-  private denormalizeState(state: NormalizedStateCategory): 'open' | 'closed' {
-    return state === NormalizedStateCategory.Done ? 'closed' : 'open';
-  }
-
-  private normalizeLabels(labels: Array<{ name: string; color?: string; description?: string }>): Array<{ name: string; color?: string; description?: string }> {
-    return labels.map(label => ({
-      name: label.name,
-      color: label.color ? `#${label.color}` : undefined,
-      description: label.description
-    }));
-  }
-
-  private denormalizeLabels(labels: Array<{ name: string; color?: string; description?: string }>): Array<{ name: string; color?: string; description?: string }> {
-    return labels.map(label => ({
-      name: label.name,
-      color: label.color ? label.color.replace('#', '') : undefined,
-      description: label.description
-    }));
-  }
-
-  private normalizeAssignees(assignees: Array<{ login: string }>): Array<string> {
-    return assignees.map(assignee => assignee.login);
-  }
-
-  private denormalizeAssignees(assignees: Array<string>): Array<{ login: string }> {
-    return assignees.map(login => ({ login }));
   }
 }

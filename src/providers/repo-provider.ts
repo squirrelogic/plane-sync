@@ -1,5 +1,11 @@
-import { Issue, IssueState, Label } from '../types';
-import { NormalizedIssue, NormalizedLabel, NormalizedState, StateMappingConfig } from '../types/normalized';
+import { Issue, IssueState, Label } from '../types/index.js';
+import {
+  NormalizedIssue,
+  NormalizedLabel,
+  NormalizedState,
+  StateMappingConfig,
+  NormalizedStateCategory,
+} from '../types/normalized.js';
 
 export interface RepoProvider {
   /**
@@ -15,7 +21,9 @@ export interface RepoProvider {
   /**
    * Create a new issue from a normalized issue
    */
-  createIssue(issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>): Promise<NormalizedIssue>;
+  createIssue(
+    issue: Omit<NormalizedIssue, 'id' | 'createdAt' | 'updatedAt' | 'sourceProvider'>
+  ): Promise<NormalizedIssue>;
 
   /**
    * Update an existing issue using normalized data
