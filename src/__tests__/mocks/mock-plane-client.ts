@@ -7,35 +7,34 @@ import {
   UpdateIssueData,
   CreateLabelData,
 } from '../../clients/base-client.js';
-import { PlaneLabel } from '../../clients/plane-client.js';
+import { PlaneClient, PlaneIssueProperty } from '../../clients/plane-client.js';
 
-export class MockPlaneClient implements IssueTrackingClient {
-  listIssues = jest.fn();
-  getIssue = jest.fn();
-  createIssue = jest.fn();
-  updateIssue = jest.fn();
-  deleteIssue = jest.fn();
-  getLabels = jest.fn();
-  getStates = jest.fn();
-  createLabel = jest.fn();
+export class MockPlaneClient extends PlaneClient implements jest.Mocked<PlaneClient> {
+  listIssues = jest.fn<Promise<BaseIssue[]>, [string]>();
+  getIssue = jest.fn<Promise<BaseIssue>, [string, string]>();
+  createIssue = jest.fn<Promise<BaseIssue>, [string, CreateIssueData]>();
+  updateIssue = jest.fn<Promise<BaseIssue>, [string, string, UpdateIssueData]>();
+  deleteIssue = jest.fn<Promise<void>, [string, string]>();
+  getLabels = jest.fn<Promise<BaseLabel[]>, [string]>();
+  getStates = jest.fn<Promise<BaseState[]>, [string]>();
+  createLabel = jest.fn<Promise<BaseLabel>, [string, CreateLabelData]>();
+  updateLabel = jest.fn<Promise<BaseLabel>, [string, string, Partial<BaseLabel>]>();
+  getProperties = jest.fn<Promise<PlaneIssueProperty[]>, [string]>();
 
   constructor() {
-    // Set up default mock implementations
-    this.createLabel.mockImplementation(
-      (projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => {
-        const labelId = 'label-' + Math.random().toString(36).substring(7);
-        return Promise.resolve({
-          id: labelId,
-          name: data.name,
-          color: data.color || '#000000',
-          description: data.description,
-          sort_order: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          project: projectRef.split('/')[1],
-          workspace: projectRef.split('/')[0],
-        });
-      }
-    );
+    super('http://mock.plane.org', 'mock-api-key');
+    this.listIssues.mockResolvedValue([]);
+    this.getIssue.mockResolvedValue({
+      id: '1',
+      title: 'Test Issue',
+      description: 'Test Description',
+      state: { id: 'open', name: 'Open' },
+      labels: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    this.getLabels.mockResolvedValue([]);
+    this.getStates.mockResolvedValue([]);
+    this.getProperties.mockResolvedValue([]);
   }
 }

@@ -1,7 +1,7 @@
-import { GitHubProvider } from '../providers/github-provider';
-import { GitHubClient } from '../clients/github-client';
-import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized';
-import { BaseIssue, BaseLabel, BaseState } from '../clients/base-client';
+import { GitHubProvider } from '../providers/github-provider.js';
+import { GitHubClient } from '../clients/github-client.js';
+import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized.js';
+import { BaseIssue, BaseLabel, BaseState } from '../clients/base-client.js';
 
 jest.mock('../clients/github-client');
 

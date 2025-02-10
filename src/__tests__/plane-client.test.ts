@@ -3,7 +3,9 @@ import {
   PlaneIssue,
   PlaneIssueProperty,
   PlaneIssuePropertyValue,
-} from '../clients/plane-client';
+  PlaneLabel,
+  PlaneState,
+} from '../clients/plane-client.js';
 
 describe('PlaneClient', () => {
   let client: PlaneClient;

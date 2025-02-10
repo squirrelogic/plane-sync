@@ -1,11 +1,12 @@
-import { BaseProvider } from '../providers/base-provider';
+import { BaseProvider } from '../providers/base-provider.js';
 import {
   NormalizedStateCategory,
   StateMappingConfig,
   NormalizedIssue,
   NormalizedState,
-} from '../types/normalized';
-import { IssueState } from '../types';
+  NormalizedLabel,
+} from '../types/normalized.js';
+import { IssueState } from '../types/index.js';
 
 class TestProvider extends BaseProvider {
   protected readonly name = 'test';
@@ -38,25 +39,12 @@ class TestProvider extends BaseProvider {
     throw new Error('Not implemented');
   }
 
-  async getLabels(): Promise<
-    { name: string; color?: string; description?: string; metadata?: Record<string, any> }[]
-  > {
+  async getLabels(): Promise<NormalizedLabel[]> {
     return [];
   }
 
-  async getStates(): Promise<
-    {
-      category: NormalizedStateCategory;
-      name: string;
-      color?: string;
-      metadata?: Record<string, any>;
-    }[]
-  > {
+  async getStates(): Promise<NormalizedState[]> {
     return [];
-  }
-
-  isSourceOfTruth(issue: NormalizedIssue): boolean {
-    return issue.sourceProvider === 'test';
   }
 
   mapState(state: NormalizedState): IssueState {

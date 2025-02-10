@@ -1,23 +1,13 @@
-import { GitHubProvider } from '../providers/github-provider';
-import { PlaneProvider } from '../providers/plane-provider';
 import {
-  NormalizedIssue,
   NormalizedStateCategory,
-  NormalizedLabel,
-  NormalizedState,
-} from '../types/normalized';
-import {
-  PlaneClient,
-  PlaneIssue,
-  PlaneState,
-  PlaneLabel,
-  CreatePlaneIssueData,
-} from '../clients/plane-client';
-import { GitHubIssue, CreateGitHubIssue, GitHubNormalizer } from '../normalizers/github-normalizer';
-import { PlaneNormalizer } from '../normalizers/plane-normalizer';
-import { NormalizedIssueUtils } from '../types/normalized';
-import { BaseLabel, CreateLabelData, IssueTrackingClient } from '../clients/base-client';
-import { MockPlaneClient } from './mocks/mock-plane-client';
+  NormalizedIssueUtils,
+  NormalizedIssue,
+} from '../types/normalized.js';
+import { GitHubNormalizer, GitHubIssue } from '../normalizers/github-normalizer.js';
+import { PlaneNormalizer } from '../normalizers/plane-normalizer.js';
+import { MockPlaneClient } from './mocks/mock-plane-client.js';
+import { PlaneClient, PlaneIssue, PlaneLabel, PlaneState } from '../clients/plane-client.js';
+import { CreateLabelData } from '../clients/base-client.js';
 
 // Mock the providers but use real normalizers
 jest.mock('../providers/github-provider');
@@ -29,11 +19,11 @@ describe('Issue Mapping', () => {
   let planeNormalizer: PlaneNormalizer;
   let planeClient: MockPlaneClient;
 
-  const mockGitHubRawIssue: GitHubIssue = {
+  const mockGitHubRawIssue = {
     number: 123,
     title: 'Test Issue',
     body: 'Test Description',
-    state: 'open',
+    state: 'open' as const,
     labels: [
       { name: 'bug', color: 'ff0000', description: 'Bug label' },
       { name: 'feature', color: '00ff00', description: 'Feature label' },
@@ -95,13 +85,12 @@ describe('Issue Mapping', () => {
       const minimalIssue: GitHubIssue = {
         number: 123,
         title: 'Test Issue',
-        state: 'open',
+        state: 'open' as const,
         labels: [],
         assignees: [],
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-02T00:00:00Z',
         node_id: 'MDU6SXNzdWUx',
-        body: undefined,
       };
 
       const normalizedIssue = await githubNormalizer.normalize(minimalIssue);
@@ -117,7 +106,7 @@ describe('Issue Mapping', () => {
       ];
 
       for (const { state, expectedCategory } of testCases) {
-        const issue: GitHubIssue = {
+        const issue = {
           ...mockGitHubRawIssue,
           state: state as 'open' | 'closed',
         };
@@ -128,7 +117,7 @@ describe('Issue Mapping', () => {
     });
 
     test('should handle GitHub label color variations', async () => {
-      const issue: GitHubIssue = {
+      const issue = {
         ...mockGitHubRawIssue,
         labels: [
           { name: 'test1', color: 'abc', description: undefined }, // Short color
@@ -146,7 +135,7 @@ describe('Issue Mapping', () => {
     });
 
     test('should correctly denormalize issue for GitHub', async () => {
-      const normalizedIssue: NormalizedIssue = {
+      const normalizedIssue = {
         id: '123',
         title: 'Test Issue',
         description: 'Test Description',
@@ -175,7 +164,7 @@ describe('Issue Mapping', () => {
     });
 
     test('should handle denormalization with minimal fields', async () => {
-      const minimalNormalizedIssue: NormalizedIssue = {
+      const minimalNormalizedIssue = {
         id: '123',
         title: 'Test Issue',
         description: '',
@@ -202,18 +191,18 @@ describe('Issue Mapping', () => {
   });
 
   describe('Plane Issue Mapping', () => {
-    const mockPlaneStates: PlaneState[] = [
+    const mockPlaneStates = [
       { id: 'state1', name: 'Backlog', color: '#cccccc' },
       { id: 'state2', name: 'In Progress', color: '#ffff00' },
       { id: 'state3', name: 'Done', color: '#00ff00' },
     ];
 
-    const mockPlaneLabels: PlaneLabel[] = [
+    const mockPlaneLabels = [
       { id: 'label1', name: 'bug', color: '#ff0000', description: 'Bug label' },
       { id: 'label2', name: 'feature', color: '#00ff00', description: 'Feature label' },
     ];
 
-    const mockPlaneRawIssue: PlaneIssue = {
+    const mockPlaneRawIssue = {
       id: 'plane-123',
       name: 'Test Issue',
       description: 'Test Description',
@@ -268,7 +257,7 @@ describe('Issue Mapping', () => {
     });
 
     test('should handle Plane issue without optional fields', async () => {
-      const minimalIssue: PlaneIssue = {
+      const minimalIssue = {
         id: 'plane-123',
         name: 'Test Issue',
         state: mockPlaneStates[0], // Backlog state
@@ -300,7 +289,7 @@ describe('Issue Mapping', () => {
     });
 
     test('should handle unknown state mappings gracefully', async () => {
-      const planeIssue: PlaneIssue = {
+      const planeIssue = {
         id: 'plane-123',
         name: 'Test Issue',
         state: {
@@ -320,7 +309,7 @@ describe('Issue Mapping', () => {
 
   describe('GitHub Normalizer Denormalization', () => {
     test('should correctly denormalize normalized issue to GitHub format', async () => {
-      const normalizedIssue: NormalizedIssue = {
+      const normalizedIssue = {
         id: '123',
         title: 'Test Issue',
         description: 'Test Description',
@@ -383,7 +372,7 @@ describe('Issue Mapping', () => {
         })
       );
 
-      const planeIssue: PlaneIssue = {
+      const planeIssue = {
         id: 'plane-123',
         name: 'Test Issue',
         state: { id: 'state1', name: 'Backlog', color: '#cccccc' },
@@ -425,7 +414,7 @@ describe('Issue Mapping', () => {
         })
       );
 
-      const normalizedIssue: NormalizedIssue = {
+      const normalizedIssue = {
         id: '123',
         title: 'Test Issue',
         description: 'Test Description',
@@ -467,7 +456,7 @@ describe('Issue Mapping', () => {
         })
       );
 
-      const normalizedIssue: NormalizedIssue = {
+      const normalizedIssue = {
         id: '123',
         title: 'Test Issue',
         description: 'Test Description',
@@ -502,7 +491,7 @@ describe('Issue Mapping', () => {
 
   describe('NormalizedIssueUtils', () => {
     test('should correctly compare two normalized issues', () => {
-      const source: NormalizedIssue = {
+      const source = {
         id: '123',
         title: 'Original Title',
         description: 'Original Description',
@@ -517,7 +506,7 @@ describe('Issue Mapping', () => {
         sourceProvider: 'github',
       };
 
-      const target: NormalizedIssue = {
+      const target = {
         ...source,
         title: 'Changed Title',
         labels: [{ name: 'feature' }],

@@ -1,7 +1,7 @@
-import { PlaneProvider } from '../providers/plane-provider';
-import { PlaneClient } from '../clients/plane-client';
-import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized';
-import { BaseIssue, BaseLabel, BaseState } from '../clients/base-client';
+import { PlaneProvider } from '../providers/plane-provider.js';
+import { PlaneClient } from '../clients/plane-client.js';
+import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized.js';
+import { BaseIssue, BaseLabel, BaseState } from '../clients/base-client.js';
 
 jest.mock('../clients/plane-client');
 

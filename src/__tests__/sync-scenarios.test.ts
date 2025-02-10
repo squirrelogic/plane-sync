@@ -1,15 +1,15 @@
-import { GitHubProvider } from '../providers/github-provider';
-import { PlaneProvider } from '../providers/plane-provider';
-import { SyncService } from '../services/sync-service';
-import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized';
-import { PlaneClient, PlaneIssue } from '../clients/plane-client';
-import { GitHubClient } from '../clients/github-client';
+import { GitHubProvider } from '../providers/github-provider.js';
+import { PlaneProvider } from '../providers/plane-provider.js';
+import { SyncService } from '../services/sync-service.js';
+import { NormalizedIssue, NormalizedStateCategory } from '../types/normalized.js';
+import { PlaneClient, PlaneIssue } from '../clients/plane-client.js';
+import { GitHubClient } from '../clients/github-client.js';
 
 // Mock implementations
-jest.mock('../providers/github-provider');
-jest.mock('../providers/plane-provider');
-jest.mock('../clients/github-client');
-jest.mock('../clients/plane-client');
+jest.mock('../providers/github-provider.js');
+jest.mock('../providers/plane-provider.js');
+jest.mock('../clients/github-client.js');
+jest.mock('../clients/plane-client.js');
 
 describe('Sync Scenarios', () => {
   let githubProvider: jest.Mocked<GitHubProvider>;
