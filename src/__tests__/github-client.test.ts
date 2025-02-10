@@ -1,18 +1,33 @@
-import { GitHubClient } from '../clients/github-client';
+import { GitHubClient } from '../clients/github-client.js';
 import { Octokit } from '@octokit/rest';
-import { BaseIssue, BaseLabel, BaseState } from '../clients/base-client';
+import { IssueTrackingClient, BaseIssue, BaseLabel, BaseState } from '../clients/base-client.js';
+import { GitHubIssue } from '../normalizers/github-normalizer.js';
 
 jest.mock('@octokit/rest');
+
+type OctokitResponse<T> = Promise<{ data: T }>;
+
+interface OctokitMockFunction<T = any> extends jest.Mock<OctokitResponse<T>> {
+  mockResolvedValue: (value: { data: T }) => this;
+  mockRejectedValue: (error: Error) => this;
+}
 
 type MockOctokit = {
   rest: {
     issues: {
-      listForRepo: jest.Mock;
-      get: jest.Mock;
-      create: jest.Mock;
-      update: jest.Mock;
-      listLabelsForRepo: jest.Mock;
-      createLabel: jest.Mock;
+      listForRepo: OctokitMockFunction<GitHubIssue[]>;
+      get: OctokitMockFunction<GitHubIssue>;
+      create: OctokitMockFunction<GitHubIssue>;
+      update: OctokitMockFunction<GitHubIssue>;
+      listLabelsForRepo: OctokitMockFunction<
+        { id: number; name: string; color: string; description?: string }[]
+      >;
+      createLabel: OctokitMockFunction<{
+        id: number;
+        name: string;
+        color: string;
+        description?: string;
+      }>;
     };
   };
 };
@@ -21,40 +36,71 @@ describe('GitHubClient', () => {
   let client: GitHubClient;
   let mockOctokit: MockOctokit;
 
+  const mockGitHubIssue: GitHubIssue = {
+    number: 1,
+    title: 'Issue 1',
+    body: 'Description 1',
+    state: 'open',
+    labels: [
+      {
+        name: 'bug',
+        color: 'ff0000',
+        description: 'Bug label',
+      },
+    ],
+    assignees: [{ login: 'user1' }],
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-02T00:00:00Z',
+    node_id: 'MDU6SXNzdWUx',
+  };
+
+  const mockGitHubPR = {
+    ...mockGitHubIssue,
+    number: 2,
+    title: 'PR 1',
+    pull_request: {},
+  };
+
   beforeEach(() => {
     mockOctokit = {
       rest: {
         issues: {
-          listForRepo: jest.fn(),
-          get: jest.fn(),
-          create: jest.fn(),
-          update: jest.fn(),
-          listLabelsForRepo: jest.fn(),
-          createLabel: jest.fn(),
+          listForRepo: jest.fn() as OctokitMockFunction<GitHubIssue[]>,
+          get: jest.fn() as OctokitMockFunction<GitHubIssue>,
+          create: jest.fn() as OctokitMockFunction<GitHubIssue>,
+          update: jest.fn() as OctokitMockFunction<GitHubIssue>,
+          listLabelsForRepo: jest.fn() as OctokitMockFunction<
+            { id: number; name: string; color: string; description?: string }[]
+          >,
+          createLabel: jest.fn() as OctokitMockFunction<{
+            id: number;
+            name: string;
+            color: string;
+            description?: string;
+          }>,
         },
       },
     };
 
-    /* eslint-disable @typescript-eslint/no-explicit-any */
     (Octokit as jest.MockedClass<typeof Octokit>).mockImplementation(
       () => mockOctokit as unknown as Octokit
     );
-    /* eslint-enable @typescript-eslint/no-explicit-any */
+
     client = new GitHubClient('test-token');
   });
 
   describe('project reference parsing', () => {
     test('should parse valid project reference', async () => {
       const _mockData = { data: [] };
-      /* eslint-disable @typescript-eslint/no-explicit-any */
+
       mockOctokit.rest.issues.listForRepo.mockRejectedValue(new Error('Network error'));
-      /* eslint-enable @typescript-eslint/no-explicit-any */
 
       await expect(client.listIssues('owner/repo')).rejects.toThrow('Network error');
       expect(mockOctokit.rest.issues.listForRepo).toHaveBeenCalledWith({
         owner: 'owner',
         repo: 'repo',
         state: 'all',
+        per_page: 100,
       });
     });
 
@@ -65,37 +111,9 @@ describe('GitHubClient', () => {
 
   describe('listIssues', () => {
     test('should list and map GitHub issues', async () => {
-      const mockGitHubIssues = [
-        {
-          id: 1,
-          number: 1,
-          title: 'Issue 1',
-          body: 'Description 1',
-          state: 'open',
-          labels: [
-            {
-              id: 1,
-              name: 'bug',
-              color: 'ff0000',
-              description: 'Bug label',
-            },
-          ],
-          created_at: '2024-01-01T00:00:00Z',
-          updated_at: '2024-01-02T00:00:00Z',
-        },
-        {
-          id: 2,
-          number: 2,
-          title: 'PR 1',
-          body: 'Description 2',
-          state: 'open',
-          pull_request: {},
-          created_at: '2024-01-01T00:00:00Z',
-          updated_at: '2024-01-02T00:00:00Z',
-        },
-      ];
-
-      mockOctokit.rest.issues.listForRepo.mockResolvedValue({ data: mockGitHubIssues });
+      mockOctokit.rest.issues.listForRepo.mockResolvedValue({
+        data: [mockGitHubIssue, mockGitHubPR],
+      });
 
       const issues = await client.listIssues('owner/repo');
       expect(issues).toHaveLength(1); // Only one actual issue, PR filtered out
@@ -125,34 +143,13 @@ describe('GitHubClient', () => {
     });
 
     test('should handle network error', async () => {
-      /* eslint-disable @typescript-eslint/no-explicit-any */
       mockOctokit.rest.issues.listForRepo.mockRejectedValue(new Error('Network error'));
-      /* eslint-enable @typescript-eslint/no-explicit-any */
-
       await expect(client.listIssues('owner/repo')).rejects.toThrow('Network error');
     });
   });
 
   describe('getIssue', () => {
     test('should get and map single GitHub issue', async () => {
-      const mockGitHubIssue = {
-        id: 1,
-        number: 1,
-        title: 'Issue 1',
-        body: 'Description 1',
-        state: 'open',
-        labels: [
-          {
-            id: 1,
-            name: 'bug',
-            color: 'ff0000',
-            description: 'Bug label',
-          },
-        ],
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-02T00:00:00Z',
-      };
-
       mockOctokit.rest.issues.get.mockResolvedValue({ data: mockGitHubIssue });
 
       const issue = await client.getIssue('owner/repo', '1');
@@ -182,9 +179,7 @@ describe('GitHubClient', () => {
     });
 
     test('should handle network error', async () => {
-      /* eslint-disable @typescript-eslint/no-explicit-any */
       mockOctokit.rest.issues.get.mockRejectedValue(new Error('Network error'));
-      /* eslint-enable @typescript-eslint/no-explicit-any */
 
       await expect(client.getIssue('owner/repo', '1')).rejects.toThrow('Network error');
     });
@@ -192,24 +187,6 @@ describe('GitHubClient', () => {
 
   describe('createIssue', () => {
     test('should create GitHub issue with all fields', async () => {
-      const mockGitHubIssue = {
-        id: 1,
-        number: 1,
-        title: 'New Issue',
-        body: 'Description',
-        state: 'open',
-        labels: [
-          {
-            id: 1,
-            name: 'bug',
-            color: 'ff0000',
-            description: 'Bug label',
-          },
-        ],
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-02T00:00:00Z',
-      };
-
       mockOctokit.rest.issues.create.mockResolvedValue({ data: mockGitHubIssue });
 
       const issue = await client.createIssue('owner/repo', {
@@ -221,8 +198,8 @@ describe('GitHubClient', () => {
 
       expect(issue).toEqual({
         id: '1',
-        title: 'New Issue',
-        description: 'Description',
+        title: 'Issue 1',
+        description: 'Description 1',
         state: {
           id: 'open',
           name: 'Open',
@@ -245,9 +222,7 @@ describe('GitHubClient', () => {
     });
 
     test('should handle network error', async () => {
-      /* eslint-disable @typescript-eslint/no-explicit-any */
       mockOctokit.rest.issues.create.mockRejectedValue(new Error('Network error'));
-      /* eslint-enable @typescript-eslint/no-explicit-any */
 
       await expect(
         client.createIssue('owner/repo', {
@@ -262,25 +237,21 @@ describe('GitHubClient', () => {
 
   describe('updateIssue', () => {
     test('should update GitHub issue with changed fields', async () => {
-      const mockGitHubIssue = {
-        id: 1,
-        number: 1,
+      const updatedMockIssue: GitHubIssue = {
+        ...mockGitHubIssue,
         title: 'Updated Issue',
         body: 'Updated Description',
         state: 'closed',
         labels: [
           {
-            id: 2,
             name: 'enhancement',
             color: '00ff00',
             description: 'Enhancement label',
           },
         ],
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-02T00:00:00Z',
       };
 
-      mockOctokit.rest.issues.update.mockResolvedValue({ data: mockGitHubIssue });
+      mockOctokit.rest.issues.update.mockResolvedValue({ data: updatedMockIssue });
 
       const issue = await client.updateIssue('owner/repo', '1', {
         title: 'Updated Issue',
@@ -317,9 +288,7 @@ describe('GitHubClient', () => {
     });
 
     test('should handle network error', async () => {
-      /* eslint-disable @typescript-eslint/no-explicit-any */
       mockOctokit.rest.issues.update.mockRejectedValue(new Error('Network error'));
-      /* eslint-enable @typescript-eslint/no-explicit-any */
 
       await expect(
         client.updateIssue('owner/repo', '1', {
@@ -336,7 +305,11 @@ describe('GitHubClient', () => {
 
   describe('deleteIssue', () => {
     test('should close GitHub issue', async () => {
-      mockOctokit.rest.issues.update.mockResolvedValue({ data: {} });
+      const closedIssue: GitHubIssue = {
+        ...mockGitHubIssue,
+        state: 'closed',
+      };
+      mockOctokit.rest.issues.update.mockResolvedValue({ data: closedIssue });
 
       await client.deleteIssue('owner/repo', '1');
 
@@ -349,9 +322,7 @@ describe('GitHubClient', () => {
     });
 
     test('should handle network error', async () => {
-      /* eslint-disable @typescript-eslint/no-explicit-any */
       mockOctokit.rest.issues.update.mockRejectedValue(new Error('Network error'));
-      /* eslint-enable @typescript-eslint/no-explicit-any */
 
       await expect(client.deleteIssue('owner/repo', '1')).rejects.toThrow('Network error');
     });
@@ -382,9 +353,7 @@ describe('GitHubClient', () => {
     });
 
     test('should handle network error', async () => {
-      /* eslint-disable @typescript-eslint/no-explicit-any */
       mockOctokit.rest.issues.listLabelsForRepo.mockRejectedValue(new Error('Network error'));
-      /* eslint-enable @typescript-eslint/no-explicit-any */
 
       await expect(client.getLabels('owner/repo')).rejects.toThrow('Network error');
     });
@@ -426,9 +395,7 @@ describe('GitHubClient', () => {
     });
 
     test('should handle network error', async () => {
-      /* eslint-disable @typescript-eslint/no-explicit-any */
       mockOctokit.rest.issues.createLabel.mockRejectedValue(new Error('Network error'));
-      /* eslint-enable @typescript-eslint/no-explicit-any */
 
       await expect(
         client.createLabel('owner/repo', {
