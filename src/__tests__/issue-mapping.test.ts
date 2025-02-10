@@ -51,25 +51,26 @@ describe('Issue Mapping', () => {
         description: 'Test Description',
         state: {
           category: NormalizedStateCategory.Todo,
-          name: 'Todo'
+          name: 'Open'
         },
         labels: [
           {
             name: 'bug',
-            color: '#ff0000',
-            description: 'Bug label'
+            description: 'Bug label',
+            color: '#ff0000'
           },
           {
             name: 'feature',
-            color: '#00ff00',
-            description: 'Feature label'
+            description: 'Feature label',
+            color: '#00ff00'
           }
         ],
         assignees: ['user1', 'user2'],
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-02T00:00:00Z',
         metadata: {
-          nodeId: 'MDU6SXNzdWUx'
+          nodeId: 'MDU6SXNzdWUx',
+          externalId: '123'
         },
         sourceProvider: 'github'
       });
@@ -353,9 +354,16 @@ describe('Issue Mapping', () => {
     test('should create new labels when they dont exist', async () => {
       // Setup: Empty label cache (already set in beforeEach)
       let labelIdCounter = 1;
-      planeClient.createLabel.mockImplementation(async (_, __, data) => ({
+      planeClient.createLabel.mockImplementation(async (projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => ({
         id: `label-${labelIdCounter++}`,
-        ...data
+        name: data.name,
+        color: data.color || '#000000',
+        description: data.description || '',
+        sort_order: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        project: projectRef.split('/')[1],
+        workspace: projectRef.split('/')[0]
       }));
 
       const planeIssue: PlaneIssue = {
@@ -386,9 +394,16 @@ describe('Issue Mapping', () => {
 
     test('should handle label creation and caching during denormalization', async () => {
       let labelIdCounter = 1;
-      planeClient.createLabel.mockImplementation(async (_, __, data) => ({
+      planeClient.createLabel.mockImplementation(async (projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => ({
         id: `label-${labelIdCounter++}`,
-        ...data
+        name: data.name,
+        color: data.color || '#000000',
+        description: data.description || '',
+        sort_order: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        project: projectRef.split('/')[1],
+        workspace: projectRef.split('/')[0]
       }));
 
       const normalizedIssue: NormalizedIssue = {
@@ -411,19 +426,26 @@ describe('Issue Mapping', () => {
       // First denormalization should create the label
       const firstResult = await planeNormalizer.denormalize(normalizedIssue);
       expect(planeClient.createLabel).toHaveBeenCalledTimes(1);
-      expect(firstResult.label_ids).toEqual(['label-1']);
+      expect(firstResult.labels.map(l => l.id)).toEqual(['label-1']);
 
       // Second call should use cached label
       const secondResult = await planeNormalizer.denormalize(normalizedIssue);
       expect(planeClient.createLabel).toHaveBeenCalledTimes(1); // Still 1, no new calls
-      expect(secondResult.label_ids).toEqual(['label-1']);
+      expect(secondResult.labels.map(l => l.id)).toEqual(['label-1']);
     });
 
     test('should handle label color and description during denormalization', async () => {
       let labelIdCounter = 1;
-      planeClient.createLabel.mockImplementation(async (_, __, data) => ({
+      planeClient.createLabel.mockImplementation(async (projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => ({
         id: `label-${labelIdCounter++}`,
-        ...data
+        name: data.name,
+        color: data.color || '#000000',
+        description: data.description || '',
+        sort_order: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        project: projectRef.split('/')[1],
+        workspace: projectRef.split('/')[0]
       }));
 
       const normalizedIssue: NormalizedIssue = {
@@ -461,7 +483,7 @@ describe('Issue Mapping', () => {
           color: '#000000'
         }
       );
-      expect(result.label_ids).toEqual(['label-1', 'label-2']);
+      expect(result.labels.map(l => l.id)).toEqual(['label-1', 'label-2']);
     });
   });
 

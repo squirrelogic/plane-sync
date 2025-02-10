@@ -1,4 +1,5 @@
 import { IssueTrackingClient, BaseIssue, BaseLabel, BaseState, CreateIssueData, UpdateIssueData, CreateLabelData } from '../../clients/base-client';
+import { PlaneLabel } from '../../clients/plane-client';
 
 export class MockPlaneClient implements IssueTrackingClient {
   listIssues = jest.fn();
@@ -12,12 +13,18 @@ export class MockPlaneClient implements IssueTrackingClient {
 
   constructor() {
     // Set up default mock implementations
-    this.createLabel.mockImplementation((projectRef: string, data: CreateLabelData): Promise<BaseLabel> => {
+    this.createLabel.mockImplementation((projectRef: string, data: CreateLabelData): Promise<PlaneLabel> => {
+      const labelId = 'label-' + Math.random().toString(36).substring(7);
       return Promise.resolve({
-        id: 'label-' + data.name,
+        id: labelId,
         name: data.name,
-        color: data.color,
-        description: data.description
+        color: data.color || '#000000',
+        description: data.description,
+        sort_order: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        project: projectRef.split('/')[1],
+        workspace: projectRef.split('/')[0]
       });
     });
   }
