@@ -80,6 +80,20 @@ workflow
 }
 ```
 
+## Manual Commit Syntax
+When creating commits manually, always use the printf syntax to properly handle newlines and formatting:
+
+```bash
+printf "type(scope): description\n\nbody of the commit explaining the changes in detail\n\nfooter information" | git commit -F -
+```
+
+For example:
+```bash
+printf "feat(auth): add OAuth2 support\n\nAdd Google and GitHub provider integration\nImplement token refresh handling\nAdd user profile synchronization\n\nCloses #123" | git commit -F -
+```
+
+This ensures proper formatting and newline handling in the commit message.
+
 ## Examples
 
 ### Feature with Scope
